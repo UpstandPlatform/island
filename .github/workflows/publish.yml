@@ -1,0 +1,80 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run npm publish --dry-run instead of publishing"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    # If you configure a GitHub Environment on your npmjs.com Trusted Publisher,
+    # uncomment the matching environment name here:
+    # environment: npm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      # Omit `registry-url` and `NODE_AUTH_TOKEN` so npm uses GitHub OIDC Trusted Publishing.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Check npm CLI version (needs >= 11.5.1 for OIDC)
+        run: |
+          npm --version
+          node -e '
+            const [maj, min, pat] = require("child_process").execSync("npm --version", { encoding: "utf8" }).trim().split(".").map(Number);
+            if (maj < 11 || (maj === 11 && min < 5) || (maj === 11 && min === 5 && pat < 1)) {
+              throw new Error(`npm >= 11.5.1 is required for OIDC trusted publishing, got ${maj}.${min}.${pat}`);
+            }
+          '
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify release tag matches package.json version
+        if: github.event_name == 'release'
+        run: |
+          node -e '
+            const tag = (process.env.GITHUB_REF_NAME || "").replace(/^v/, "");
+            const pkg = require("./package.json").version;
+            if (tag !== pkg) {
+              throw new Error(`Release tag "${process.env.GITHUB_REF_NAME}" does not match package.json version "${pkg}"`);
+            }
+            console.log(`Verified release tag matches package.json v${pkg}`);
+          '
+
+      - name: Typecheck
+        run: bun run check-types
+
+      - name: Test
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Dry run npm publish
+        if: inputs.dry_run
+        run: npm publish --dry-run --access public
+
+      - name: Publish to npm via OIDC Trusted Publishing
+        if: ${{ !inputs.dry_run }}
+        run: npm publish --provenance --access public

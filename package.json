@@ -1,0 +1,78 @@
+{
+  "name": "@upstand/island",
+  "version": "0.1.0",
+  "description": "A dynamic-island header for React: busy activity, slots and toasts that morph out of the island. Headless, SSR safe, optional sileo engine.",
+  "license": "MIT",
+  "author": {
+    "name": "Upstand",
+    "url": "https://github.com/UpstandPlatform"
+  },
+  "homepage": "https://github.com/UpstandPlatform/island#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UpstandPlatform/island.git"
+  },
+  "bugs": {
+    "url": "https://github.com/UpstandPlatform/island/issues"
+  },
+  "type": "module",
+  "keywords": [
+    "react",
+    "dynamic-island",
+    "toast",
+    "notification",
+    "header",
+    "telegram-mini-app"
+  ],
+  "sideEffects": ["*.css"],
+  "files": ["dist", "src/island.css", "README.md", "CHANGELOG.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./sileo": {
+      "types": "./dist/sileo.d.ts",
+      "import": "./dist/sileo.js"
+    },
+    "./island.css": "./src/island.css",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "check-types": "tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "npm run check-types && npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "sileo": ">=0.1.6 <0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "sileo": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sileo": "^0.1.6",
+    "tsup": "^8.5.0",
+    "typescript": "^6.0.3"
+  }
+}
