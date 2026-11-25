@@ -80,7 +80,7 @@ With Tailwind v4, import the stylesheet into a layer so your utility classes ove
 The island coordinates all resting bars, docks, busy indicators, expanded drawers, and morphing toasts around a shared store and aligned viewport coordinates:
 
 1. **Single-capsule takeover & viewport-safe anchoring.** `<Island>` mounts inside `[data-island-anchor]`, pinning the bar height at the header/footer edge so `top-*` expands strictly downward and `bottom-*` expands strictly upward (clamped cleanly to available viewport height with internal scrolling). When a toast opens, `<Island>` sets `data-hidden`, `aria-hidden="true"`, and `inert` while `<IslandToaster>` morphs at the exact same anchor.
-2. **Analytic C1 gooey geometry.** `DefaultIslandToastEngine` renders C1-continuous cubic Bezier shoulders (`buildGooeyPath` + `computePillX`) driven at 120Hz via direct DOM/SVG updates (`useMotionController`), supporting blur-crossfade headers, autopilot expand/collapse, collapse-before-swap transitions, and velocity-tracked swipe-to-dismiss with spring return.
+2. **Analytic C1 gooey geometry.** `DefaultIslandToastEngine` renders C1-continuous cubic Bezier shoulders (`buildGooeyPath` + `computePillX`) driven at the display refresh rate via direct DOM/SVG updates (`useMotionController`), supporting fade/slide crossfade headers, autopilot expand/collapse, collapse-before-swap transitions, and velocity-tracked swipe-to-dismiss with spring return.
 3. **Ref-counted busy & slot stacks.** Concurrent `island.busy(label)` calls and `useIslandSlot(key, value)` registrations follow last-in-first-out ownership, restoring earlier labels or slot values automatically on completion/unmount.
 
 <p align="center">
@@ -89,17 +89,17 @@ The island coordinates all resting bars, docks, busy indicators, expanded drawer
 
 ## Visual Showcase
 
-### Ref-counted busy sweep & 120Hz expandable drawer
+### Ref-counted busy sweep & spring-shaped expandable drawer
 
-`island.busy()` crossfades stacked task labels and sweeps `<IslandProgress />`; `<Island expanded={...} open autoMorph />` resizes both axes at 120Hz with configurable spring physics and non-shrinking `[data-island-leading]` / `[data-island-trailing]` slots.
+`island.busy()` crossfades stacked task labels and sweeps `<IslandProgress />`; `<Island expanded={...} open autoMorph />` animates its width and height through spring-shaped CSS grid tracks, avoiding competing size measurements during repeated open/close. Islands without an expanded panel use configurable spring physics to morph intrinsic content changes. Leading and trailing slots stay fixed under flex pressure.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/busy-and-expand.gif" alt="Stacked busy activity labels and 120Hz bouncy autoMorph drawer" width="680" />
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/busy-and-expand.gif" alt="Stacked busy activity labels and spring-shaped autoMorph drawer" width="680" />
 </p>
 
 ### Analytic C1 gooey morph & collapse-before-swap
 
-`island.toast.promise()` and sequential notifications morph smoothly between compact header pills and expanded action drawers using C1-continuous shoulders and blur-crossfade titles.
+`island.toast.promise()` and sequential notifications morph smoothly between compact header pills and expanded action drawers using C1-continuous shoulders and fade/slide-crossfade titles.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/toast-morph.gif" alt="Analytic C1 gooey toast morph, promise update, and collapse-before-swap animation" width="680" />
@@ -133,11 +133,11 @@ Import presets or factories from `@upstand/island` or the tree-shakeable subpath
 
 | Preset (`ISLAND_MOTIONS`) | Feel | Underlying driver |
 | --- | --- | --- |
-| `"bouncy"` *(default)* | Crisp iOS / Sileo spring overshoot (`bounce: 0.25`, `600ms`) | Analytical spring |
-| `"smooth"` | Critically damped zero-overshoot glide (`480ms`) | Analytical spring |
-| `"snappy"` | Fast interactive response (`360ms`, `bounce: 0.18`) | Analytical spring |
-| `"elastic"` | Expressive tactile bounce (`680ms`, `bounce: 0.42`) | Analytical spring |
-| `"gentle"` | Relaxed large-drawer settle (`720ms`, `bounce: 0.08`) | Analytical spring |
+| `"bouncy"` *(default)* | Crisp spring overshoot (`340–360ms`, `bounce: 0.2`) | Analytical spring |
+| `"smooth"` | Critically damped zero-overshoot glide (`260–300ms`) | Analytical spring |
+| `"snappy"` | Fast interactive response (`230–250ms`, `bounce: 0.14`) | Analytical spring |
+| `"elastic"` | Expressive tactile bounce (`400–420ms`, `bounce: 0.32`) | Analytical spring |
+| `"gentle"` | Relaxed drawer settle (`380–400ms`, `bounce: 0.05`) | Analytical spring |
 | `"instant"` | Zero-motion snap (also used when `prefers-reduced-motion` matches) | Immediate |
 
 Create tuned presets or plug in your own adapter (`IslandMotionAdapter`) backed by `requestAnimationFrame`, Web Animations API, Framer Motion, or GSAP:
@@ -338,7 +338,7 @@ island.setTheme("light");
 | `hideOnToast` | Default `true`. Fades and marks `<Island>` `inert` while a toast takes over. |
 | `busyFallbackLabel` | Screen-reader status text used when busy without a label. |
 | `position`, `mode`, `surface`, `glass`, `motion`, `dir`, `theme`, `roundness` | Optional per-component overrides over provider/store layout state. |
-| `autoMorph` | Default `true`. Enables 120Hz `ResizeObserver` width/height auto-morphing. |
+| `autoMorph` | Default `true`. Enables native-refresh-rate width/height morphing for intrinsic content changes when no expanded panel is present. With an expanded panel, CSS grid tracks animate both dimensions so intermediate frames cannot feed back into the size spring. |
 
 ### `<IslandToaster>`
 
@@ -417,7 +417,7 @@ Events: `show`, `update`, `dismiss`, `busy`, `layout`, and `change`. `getServerS
 
 ## Styling & Customization
 
-`island.css` wraps every rule in `:where(...)` (zero specificity) so utility classes and custom CSS always take precedence. Switch palettes by passing `theme` or setting `data-island-theme="light" | "dark" | "system"` on any ancestor.
+Most `island.css` selectors use `:where(...)` (zero specificity), so utility classes and custom CSS can take precedence. Reset classes on native dock and toast buttons keep broad page-level `button` rules from distorting those controls. Switch palettes by passing `theme` or setting `data-island-theme="light" | "dark" | "system"` on any ancestor.
 
 | CSS Custom Property | Default | Purpose |
 | --- | --- | --- |
@@ -427,7 +427,8 @@ Events: `show`, `update`, `dismiss`, `busy`, `layout`, and `change`. `getServerS
 | `--island-radius` / `--island-radius-expanded` | `calc(var(--island-height) / 2)` / `1.25rem` | Resting pill & expanded panel corner radius |
 | `--island-roundness` | `16px` | Analytic gooey corner & neck curve roundness |
 | `--island-inset` / `--island-inset-x` | safe-area + `0.5rem` / safe-area + `0.75rem` | Vertical and horizontal viewport spacing |
-| `--island-duration` / `--island-ease` | `420ms` / `cubic-bezier(0.22, 1, 0.36, 1)` | CSS fallback motion timing tokens |
+| `--island-duration` / `--island-ease` | `300ms` / `cubic-bezier(0.22, 1, 0.36, 1)` | CSS fallback motion timing tokens |
+| `--island-expand-duration` / `--island-collapse-duration` | inherit `--island-duration` | Expanded-panel open and close timing |
 | `--island-glass-blur` / `--island-glass-saturation` | `11px` / `1.85` | Live Liquid Glass backdrop blur & color boost |
 | `--island-glass-tint` / `--island-glass-rim` | adaptive dark/light glass tokens | Optical glass tint & Fresnel highlight rim |
 | `--island-success`, `-error`, `-warning`, `-info`, `-loading`, `-action` | semantic oklch tokens | Accent colors for icons, badges, and buttons |

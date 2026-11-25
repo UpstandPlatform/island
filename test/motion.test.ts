@@ -8,6 +8,7 @@ import {
   evaluateSpring,
   ISLAND_MOTIONS,
   resolveMotionAdapter,
+  resolveSpringDurationMs,
   resolveSpringParams,
   springToCssLinear,
   type IslandMotionAdapter,
@@ -70,6 +71,21 @@ describe("analytical spring solver", () => {
     expect(at60.value).toBeCloseTo(at120.value, 10);
     expect(at120.value).toBeCloseTo(at240.value, 10);
     expect(at60.velocity).toBeCloseTo(at240.velocity, 10);
+  });
+
+  test("configured duration is the approximate settle time for both physical and CSS motion", () => {
+    for (const config of [
+      { duration: 480, bounce: 0 },
+      { duration: 600, bounce: 0.25 },
+      { duration: 680, bounce: 0.42 },
+      { duration: 720, bounce: 0.08 },
+    ]) {
+      expect(Math.abs(resolveSpringDurationMs(config) - config.duration)).toBeLessThanOrEqual(8);
+    }
+
+    expect(ISLAND_MOTIONS.smooth.css?.duration).toBe("264ms");
+    expect(ISLAND_MOTIONS.smooth.css?.vars?.["--island-expand-duration"]).toBe("304ms");
+    expect(ISLAND_MOTIONS.smooth.css?.vars?.["--island-collapse-duration"]).toBe("232ms");
   });
 
   test("preserves instantaneous initial velocity across mid-flight interruptions", () => {

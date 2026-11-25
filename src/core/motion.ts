@@ -63,7 +63,7 @@ export interface IslandMotionAdapter {
 }
 
 export interface IslandSpringConfig {
-  /** Perceptual spring duration in ms (used with `bounce`). */
+  /** Approximate time to settle in ms (used with `bounce`). */
   duration?: number;
   /** Bounce factor (`0` = critically damped, `0.25` = expressive, `-0.5` = overdamped). */
   bounce?: number;
@@ -95,12 +95,38 @@ export interface ResolvedSpringParams {
 }
 
 const MAX_SPRING_SECONDS = 10;
+const resolvedSpringCache = new Map<string, ResolvedSpringParams>();
+
+function springConfigKey(config: IslandSpringConfig): string {
+  return JSON.stringify([
+    config.stiffness,
+    config.damping,
+    config.mass,
+    config.duration,
+    config.bounce,
+    config.precision,
+    config.velocityThreshold,
+  ]);
+}
+
+function cacheSpringParams(key: string, params: ResolvedSpringParams): ResolvedSpringParams {
+  if (resolvedSpringCache.size >= 128 && !resolvedSpringCache.has(key)) {
+    const oldest = resolvedSpringCache.keys().next().value;
+    if (oldest !== undefined) resolvedSpringCache.delete(oldest);
+  }
+  resolvedSpringCache.set(key, params);
+  return { ...params };
+}
 
 /**
  * Resolve either `{ duration, bounce }` or `{ stiffness, damping, mass }` into
  * canonical physical spring constants.
  */
 export function resolveSpringParams(config: IslandSpringConfig = {}): ResolvedSpringParams {
+  const key = springConfigKey(config);
+  const cached = resolvedSpringCache.get(key);
+  if (cached) return { ...cached };
+
   const mass = Math.max(0.01, config.mass ?? 1);
   const precision = Math.max(1e-5, config.precision ?? 0.001);
   const velocityThreshold = Math.max(1e-4, config.velocityThreshold ?? 0.01);
@@ -111,18 +137,47 @@ export function resolveSpringParams(config: IslandSpringConfig = {}): ResolvedSp
     const omega0 = Math.sqrt(stiffness / mass);
     const zeta = damping / (2 * Math.sqrt(stiffness * mass));
     const nominalDurationMs = Math.max(50, Math.round(((2 * Math.PI) / omega0) * 1000));
-    return { stiffness, damping, mass, omega0, zeta, precision, velocityThreshold, nominalDurationMs };
+    return cacheSpringParams(key, { stiffness, damping, mass, omega0, zeta, precision, velocityThreshold, nominalDurationMs });
   }
 
-  const nominalDurationMs = Math.max(10, config.duration ?? 500);
+  const rawDurationMs = config.duration ?? 500;
+  const nominalDurationMs = Number.isFinite(rawDurationMs) ? Math.max(10, rawDurationMs) : 500;
   const periodSec = nominalDurationMs / 1000;
   const bounce = Math.max(-0.99, Math.min(0.95, config.bounce ?? 0));
-  const omega0 = (2 * Math.PI) / periodSec;
   const zeta = bounce >= 0 ? Math.max(0.05, 1 - bounce) : 1 / (1 + bounce);
+
+  // `duration` is the perceptual time users expect the motion to take. Mapping
+  // it directly to one oscillation period made critically damped springs run
+  // about 1.5x longer and expressive springs up to 1.7x longer. Calibrate the
+  // natural frequency so a normalized transition reaches both settling
+  // thresholds by the requested time while preserving the requested damping.
+  const settlesByTarget = (omega0: number) => {
+    const candidate: ResolvedSpringParams = {
+      stiffness: omega0 * omega0 * mass,
+      damping: 2 * zeta * omega0 * mass,
+      mass,
+      omega0,
+      zeta,
+      precision,
+      velocityThreshold,
+      nominalDurationMs,
+    };
+    return evaluateSpring(candidate, 0, 1, 0, periodSec).done;
+  };
+  let low = 0;
+  let high = (2 * Math.PI) / periodSec;
+  for (let i = 0; i < 32 && !settlesByTarget(high); i++) high *= 2;
+  for (let i = 0; i < 40; i++) {
+    const mid = (low + high) / 2;
+    if (settlesByTarget(mid)) high = mid;
+    else low = mid;
+  }
+
+  const omega0 = high;
   const stiffness = omega0 * omega0 * mass;
   const damping = 2 * zeta * omega0 * mass;
 
-  return { stiffness, damping, mass, omega0, zeta, precision, velocityThreshold, nominalDurationMs };
+  return cacheSpringParams(key, { stiffness, damping, mass, omega0, zeta, precision, velocityThreshold, nominalDurationMs });
 }
 
 /**
@@ -306,10 +361,16 @@ export function createSpringMotion(options: SpringMotionOptions = {}): IslandMot
   };
 
   const morphConfig = options.channels?.morph ?? baseConfig;
+  const expandConfig = options.channels?.expand ?? baseConfig;
+  const collapseConfig = options.channels?.collapse ?? baseConfig;
   const exitConfig = options.channels?.exit ?? options.channels?.collapse ?? baseConfig;
   const cssDurationMs = resolveSpringDurationMs(morphConfig);
+  const expandDurationMs = resolveSpringDurationMs(expandConfig);
+  const collapseDurationMs = resolveSpringDurationMs(collapseConfig);
   const exitMs = options.exitMs ?? resolveSpringDurationMs(exitConfig);
   const cssEasing = springToCssLinear(morphConfig);
+  const expandEasing = springToCssLinear(expandConfig);
+  const collapseEasing = springToCssLinear(collapseConfig);
 
   const sample: NonNullable<IslandMotionAdapter["sample"]> = ({ from, to, velocity, channel, t }) => {
     const params = getParams(channel);
@@ -336,6 +397,10 @@ export function createSpringMotion(options: SpringMotionOptions = {}): IslandMot
       vars: {
         "--island-duration": `${cssDurationMs}ms`,
         "--island-ease": cssEasing,
+        "--island-expand-duration": `${expandDurationMs}ms`,
+        "--island-expand-ease": expandEasing,
+        "--island-collapse-duration": `${collapseDurationMs}ms`,
+        "--island-collapse-ease": collapseEasing,
       },
     },
     animate({ from, to, velocity, channel, onUpdate, onComplete }) {
@@ -505,6 +570,10 @@ const instantAdapter: IslandMotionAdapter = {
     vars: {
       "--island-duration": "0ms",
       "--island-ease": "linear",
+      "--island-expand-duration": "0ms",
+      "--island-expand-ease": "linear",
+      "--island-collapse-duration": "0ms",
+      "--island-collapse-ease": "linear",
     },
   },
   animate({ to, onUpdate, onComplete }) {
@@ -518,73 +587,73 @@ const instantAdapter: IslandMotionAdapter = {
 export const ISLAND_MOTIONS: Readonly<Record<IslandMotionPreset, IslandMotionAdapter>> = {
   bouncy: /* @__PURE__ */ createSpringMotion({
     name: "bouncy",
-    default: { duration: 600, bounce: 0.25 },
+    default: { duration: 360, bounce: 0.2 },
     channels: {
-      morph: { duration: 600, bounce: 0.25 },
-      expand: { duration: 600, bounce: 0.25 },
-      collapse: { duration: 500, bounce: 0 },
-      enter: { duration: 420, bounce: 0.28 },
-      exit: { duration: 420, bounce: 0 },
-      dragReturn: { duration: 320, bounce: 0.22 },
-      header: { duration: 420, bounce: 0.1 },
+      morph: { duration: 340, bounce: 0.2 },
+      expand: { duration: 360, bounce: 0.2 },
+      collapse: { duration: 270, bounce: 0 },
+      enter: { duration: 280, bounce: 0.18 },
+      exit: { duration: 250, bounce: 0 },
+      dragReturn: { duration: 210, bounce: 0.16 },
+      header: { duration: 220, bounce: 0.08 },
     },
-    exitMs: 480,
+    exitMs: 270,
   }),
   smooth: /* @__PURE__ */ createSpringMotion({
     name: "smooth",
-    default: { duration: 480, bounce: 0 },
+    default: { duration: 280, bounce: 0 },
     channels: {
-      morph: { duration: 480, bounce: 0 },
-      expand: { duration: 480, bounce: 0 },
-      collapse: { duration: 380, bounce: 0 },
-      enter: { duration: 380, bounce: 0 },
-      exit: { duration: 360, bounce: 0 },
-      dragReturn: { duration: 300, bounce: 0 },
-      header: { duration: 360, bounce: 0 },
+      morph: { duration: 260, bounce: 0 },
+      expand: { duration: 300, bounce: 0 },
+      collapse: { duration: 230, bounce: 0 },
+      enter: { duration: 240, bounce: 0 },
+      exit: { duration: 220, bounce: 0 },
+      dragReturn: { duration: 180, bounce: 0 },
+      header: { duration: 200, bounce: 0 },
     },
-    exitMs: 380,
+    exitMs: 240,
   }),
   snappy: /* @__PURE__ */ createSpringMotion({
     name: "snappy",
-    default: { duration: 360, bounce: 0.18 },
+    default: { duration: 240, bounce: 0.14 },
     channels: {
-      morph: { duration: 360, bounce: 0.18 },
-      expand: { duration: 360, bounce: 0.18 },
-      collapse: { duration: 280, bounce: 0 },
-      enter: { duration: 300, bounce: 0.2 },
-      exit: { duration: 280, bounce: 0 },
-      dragReturn: { duration: 240, bounce: 0.15 },
-      header: { duration: 280, bounce: 0.08 },
+      morph: { duration: 230, bounce: 0.14 },
+      expand: { duration: 250, bounce: 0.14 },
+      collapse: { duration: 190, bounce: 0 },
+      enter: { duration: 200, bounce: 0.12 },
+      exit: { duration: 180, bounce: 0 },
+      dragReturn: { duration: 150, bounce: 0.1 },
+      header: { duration: 170, bounce: 0.06 },
     },
-    exitMs: 300,
+    exitMs: 200,
   }),
   elastic: /* @__PURE__ */ createSpringMotion({
     name: "elastic",
-    default: { duration: 680, bounce: 0.42 },
+    default: { duration: 420, bounce: 0.32 },
     channels: {
-      morph: { duration: 680, bounce: 0.42 },
-      expand: { duration: 680, bounce: 0.42 },
-      collapse: { duration: 440, bounce: 0.08 },
-      enter: { duration: 520, bounce: 0.38 },
-      exit: { duration: 420, bounce: 0 },
-      dragReturn: { duration: 380, bounce: 0.35 },
-      header: { duration: 460, bounce: 0.18 },
+      morph: { duration: 400, bounce: 0.32 },
+      expand: { duration: 420, bounce: 0.32 },
+      collapse: { duration: 300, bounce: 0.06 },
+      enter: { duration: 340, bounce: 0.28 },
+      exit: { duration: 260, bounce: 0 },
+      dragReturn: { duration: 240, bounce: 0.24 },
+      header: { duration: 280, bounce: 0.14 },
     },
-    exitMs: 460,
+    exitMs: 280,
   }),
   gentle: /* @__PURE__ */ createSpringMotion({
     name: "gentle",
-    default: { duration: 720, bounce: 0.08 },
+    default: { duration: 400, bounce: 0.05 },
     channels: {
-      morph: { duration: 720, bounce: 0.08 },
-      expand: { duration: 720, bounce: 0.08 },
-      collapse: { duration: 580, bounce: 0 },
-      enter: { duration: 560, bounce: 0.06 },
-      exit: { duration: 520, bounce: 0 },
-      dragReturn: { duration: 420, bounce: 0.05 },
-      header: { duration: 500, bounce: 0 },
+      morph: { duration: 380, bounce: 0.05 },
+      expand: { duration: 400, bounce: 0.05 },
+      collapse: { duration: 300, bounce: 0 },
+      enter: { duration: 320, bounce: 0.04 },
+      exit: { duration: 260, bounce: 0 },
+      dragReturn: { duration: 220, bounce: 0.03 },
+      header: { duration: 260, bounce: 0 },
     },
-    exitMs: 560,
+    exitMs: 280,
   }),
   instant: instantAdapter,
 };

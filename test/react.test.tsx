@@ -150,6 +150,12 @@ describe("React SSR rendering", () => {
     expect(engineHtml).toContain("custom-root");
     expect(engineHtml).toContain("custom-title");
     expect(engineHtml).toContain('aria-label="Close"');
+    expect(engineHtml).toContain('data-island-toast-title=""');
+    expect(engineHtml).toContain('aria-expanded="false"');
+    expect(engineHtml).toContain('inert=""');
+    const bodyId = engineHtml.match(/aria-controls="([^"]+)"/)?.[1];
+    expect(bodyId).toBeTruthy();
+    expect(engineHtml).toContain(`id="${bodyId}"`);
   });
 
   test("wraps leading, badge (including 0), and trailing slots cleanly and omits falsy/boolean slots", () => {

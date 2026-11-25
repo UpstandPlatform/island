@@ -150,9 +150,22 @@ export function useMotionController(adapter: IslandMotionAdapter, onFrame: () =>
   const slotsRef = useRef(new Map<string, MotionSlot>());
   const adapterRef = useRef(adapter);
   const frameRef = useRef(onFrame);
+  const framePendingRef = useRef(false);
 
   adapterRef.current = adapter;
   frameRef.current = onFrame;
+
+  // Several channels of one animation (for example body height + header shift)
+  // can tick on the same display frame. Flush one DOM update after the shared
+  // rAF loop finishes instead of rebuilding toast geometry once per channel.
+  const scheduleFrame = useCallback(() => {
+    if (framePendingRef.current) return;
+    framePendingRef.current = true;
+    queueMicrotask(() => {
+      framePendingRef.current = false;
+      frameRef.current();
+    });
+  }, []);
 
   const stopSlot = (slot: MotionSlot) => {
     slot.handle?.stop();
@@ -203,7 +216,7 @@ export function useMotionController(adapter: IslandMotionAdapter, onFrame: () =>
         slot.value = target;
         slot.target = target;
         slot.velocity = 0;
-        frameRef.current();
+        scheduleFrame();
         options.onComplete?.();
         return;
       }
@@ -216,7 +229,7 @@ export function useMotionController(adapter: IslandMotionAdapter, onFrame: () =>
         slot.value = target;
         slot.target = target;
         slot.velocity = 0;
-        frameRef.current();
+        scheduleFrame();
         options.onComplete?.();
         return;
       }
@@ -234,14 +247,14 @@ export function useMotionController(adapter: IslandMotionAdapter, onFrame: () =>
         onUpdate(value, velocity) {
           activeSlot.value = value;
           activeSlot.velocity = velocity;
-          frameRef.current();
+          scheduleFrame();
         },
         onComplete() {
           completedSync = true;
           activeSlot.handle = null;
           activeSlot.value = target;
           activeSlot.velocity = 0;
-          frameRef.current();
+          scheduleFrame();
           options.onComplete?.();
         },
       });
@@ -250,7 +263,7 @@ export function useMotionController(adapter: IslandMotionAdapter, onFrame: () =>
         activeSlot.handle = handle;
       }
     },
-    [],
+    [scheduleFrame],
   );
 
   const isRunning = useCallback((key?: string) => {
@@ -277,6 +290,7 @@ export function useAutoMorph(
   measureRef: RefObject<HTMLElement | null>,
   adapter: IslandMotionAdapter,
   enabled: boolean,
+  animateHeight = true,
 ): void {
   const initializedRef = useRef(false);
   const lastSizeRef = useRef({ width: 0, height: 0 });
@@ -287,15 +301,18 @@ export function useAutoMorph(
     const ctrl = motionRef.current;
     if (!outer || !ctrl) return;
     const wRunning = ctrl.isRunning("w");
-    const hRunning = ctrl.isRunning("h");
-    if (wRunning || hRunning) {
+    const hRunning = animateHeight && ctrl.isRunning("h");
+    if (wRunning) {
       outer.style.width = `${Math.max(0, ctrl.get("w")).toFixed(2)}px`;
-      outer.style.height = `${Math.max(0, ctrl.get("h")).toFixed(2)}px`;
     } else {
       outer.style.width = "";
+    }
+    if (hRunning) {
+      outer.style.height = `${Math.max(0, ctrl.get("h")).toFixed(2)}px`;
+    } else {
       outer.style.height = "";
     }
-  }, [outerRef]);
+  }, [animateHeight, outerRef]);
 
   const motion = useMotionController(adapter, applyFrame);
   motionRef.current = motion;
@@ -315,6 +332,7 @@ export function useAutoMorph(
 
     const syncSize = (innerW: number, innerH: number) => {
       if (innerW <= 0 || innerH <= 0) return;
+      const hRunning = animateHeight && motion.isRunning("h");
       const cs = typeof getComputedStyle === "function" ? getComputedStyle(outer) : null;
       const extraW = cs
         ? (parseFloat(cs.paddingLeft) || 0) +
@@ -336,24 +354,35 @@ export function useAutoMorph(
         const maxH = parseFloat(cs.maxHeight);
         if (Number.isFinite(maxH) && maxH > 0) height = Math.min(height, maxH);
       }
+      // `measureRef` is inside the animated capsule. Its box tracks intermediate
+      // inline sizes, so observing it as a new target continually restarts the
+      // spring (and can create a ResizeObserver feedback loop). Keep each axis'
+      // intrinsic target stable until its spring settles; changes made during
+      // that motion are picked up when the inline size is cleared.
+      if (motion.isRunning("w")) {
+        width = lastSizeRef.current.width;
+      }
+      if (hRunning) {
+        height = lastSizeRef.current.height;
+      }
       if (!initializedRef.current) {
         initializedRef.current = true;
         lastSizeRef.current = { width, height };
         motion.setImmediate("w", width);
-        motion.setImmediate("h", height);
+        if (animateHeight) motion.setImmediate("h", height);
         return;
       }
 
       const prev = lastSizeRef.current;
       const dw = Math.abs(width - prev.width);
-      const dh = Math.abs(height - prev.height);
+      const dh = animateHeight ? Math.abs(height - prev.height) : 0;
       if (dw < 0.4 && dh < 0.4) return;
 
       lastSizeRef.current = { width, height };
       if (dw >= 0.4) {
         motion.animateTo("w", width, "morph");
       }
-      if (dh >= 0.4) {
+      if (animateHeight && dh >= 0.4) {
         const channel: IslandMotionChannel = height >= prev.height ? "expand" : "collapse";
         motion.animateTo("h", height, channel);
       }
@@ -382,5 +411,5 @@ export function useAutoMorph(
         outer.style.height = "";
       }
     };
-  }, [enabled, adapter, outerRef, measureRef, motion]);
+  }, [enabled, adapter, outerRef, measureRef, motion, animateHeight]);
 }

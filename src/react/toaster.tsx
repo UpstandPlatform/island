@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -252,8 +253,8 @@ function resolveAutopilotDelays(
 }
 
 /**
- * Built-in renderer: 120Hz physics-driven analytic gooey silhouette with
- * solid and live Liquid Glass surfaces, autopilot, blur-crossfade headers,
+ * Built-in renderer: refresh-rate physics-driven analytic gooey silhouette with
+ * solid and live Liquid Glass surfaces, autopilot, fade/slide crossfade headers,
  * upward/downward expansion across 6 positions, dock mode, and full RTL support.
  */
 export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslandToastEngine({
@@ -287,6 +288,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
   const bodyClipRef = useRef<HTMLDivElement>(null);
   const bodyInnerRef = useRef<HTMLDivElement>(null);
   const customMeasureRef = useRef<HTMLDivElement>(null);
+  const toastBodyId = useId();
 
   const isDark = useResolvedDarkTheme(explicitTheme ? theme : "system", toasterRef);
   const edges = getPositionEdges(position);
@@ -314,6 +316,9 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
   const measuredBodyHRef = useRef(0);
   const measuredCustomHRef = useRef(PILL_HEIGHT);
   const hasMeasuredPillRef = useRef(false);
+  const dragFrameRef = useRef<number | null>(null);
+  const ignoreNextClickRef = useRef(false);
+  const ignoreNextClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const timersRef = useRef<{
     exit?: ReturnType<typeof setTimeout>;
@@ -331,7 +336,13 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     }
   }, []);
 
-  useEffect(() => () => clearTimers("exit", "expand", "collapse", "swap", "headerExit"), [clearTimers]);
+  useEffect(() => () => {
+    clearTimers("exit", "expand", "collapse", "swap", "headerExit");
+    if (dragFrameRef.current !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(dragFrameRef.current);
+    }
+    if (ignoreNextClickTimerRef.current !== null) clearTimeout(ignoreNextClickTimerRef.current);
+  }, [clearTimers]);
 
   // Ref snapshot used inside the 120Hz frame callback so it never reads stale closures.
   const layoutPropsRef = useRef({
@@ -767,6 +778,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     velocity: number;
     delta: number;
     moved: boolean;
+    startedOnHeader: boolean;
     pointerId: number;
   } | null>(null);
   const towardEdge = expandDownward ? -1 : 1;
@@ -820,6 +832,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
       velocity: 0,
       delta: 0,
       moved: false,
+      startedOnHeader: Boolean((event.target as HTMLElement).closest("[data-island-toast-header-wrap]")),
       pointerId: event.pointerId,
     };
     toastElRef.current?.setAttribute("data-dragging", "");
@@ -840,14 +853,34 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     const clamped = raw * towardEdge > 0 ? clamp(raw, -SWIPE_MAX_PX, SWIPE_MAX_PX) : clamp(raw * 0.22, -SWIPE_MAX_PX * 0.35, SWIPE_MAX_PX * 0.35);
     state.delta = clamped;
     motionCtrl.setImmediate("dragY", clamped);
-    applyFrame();
+    if (dragFrameRef.current === null && typeof requestAnimationFrame === "function") {
+      dragFrameRef.current = requestAnimationFrame(() => {
+        dragFrameRef.current = null;
+        applyFrame();
+      });
+    } else if (typeof requestAnimationFrame !== "function") {
+      applyFrame();
+    }
   };
 
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const state = dragRef.current;
     if (!state || state.pointerId !== event.pointerId) return;
+    if (dragFrameRef.current !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+      applyFrame();
+    }
     dragRef.current = null;
     toastElRef.current?.removeAttribute("data-dragging");
+    if (event.type === "pointerup" && state.moved && state.startedOnHeader) {
+      ignoreNextClickRef.current = true;
+      if (ignoreNextClickTimerRef.current !== null) clearTimeout(ignoreNextClickTimerRef.current);
+      ignoreNextClickTimerRef.current = setTimeout(() => {
+        ignoreNextClickRef.current = false;
+        ignoreNextClickTimerRef.current = null;
+      }, 0);
+    }
 
     const velocityToward = state.velocity * towardEdge;
     const distToward = state.delta * towardEdge;
@@ -860,7 +893,14 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
   };
 
   const onHeaderClick = () => {
-    if (dragRef.current?.moved) return;
+    if (ignoreNextClickRef.current) {
+      ignoreNextClickRef.current = false;
+      if (ignoreNextClickTimerRef.current !== null) {
+        clearTimeout(ignoreNextClickTimerRef.current);
+        ignoreNextClickTimerRef.current = null;
+      }
+      return;
+    }
     if (leaving || !hasBody || shown.type === "loading" || pureCustom) return;
     const next = !expandedRef.current;
     manualExpandedRef.current = next;
@@ -879,7 +919,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     <button
       type="button"
       data-island-toast-close=""
-      className={styles?.close}
+      className={["island-toast-close", styles?.close].filter(Boolean).join(" ")}
       aria-label={closeLabel}
       onClick={(e) => {
         e.stopPropagation();
@@ -910,6 +950,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
         : layer.type !== "custom"
           ? icons?.[layer.type] ?? <ToastIcon type={layer.type} />
           : null;
+    const titleClassName = ["island-toast-title", styles?.title].filter(Boolean).join(" ");
     return (
       <div
         key={`${role}:${layer.key}`}
@@ -922,7 +963,25 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
               {resolvedIcon}
             </span>
           )}
-          <span data-island-toast-title="" className={styles?.title}>{layer.title}</span>
+          {role === "current" && hasBody && shown.type !== "loading" ? (
+            <button
+              type="button"
+              data-island-toast-title=""
+              className={titleClassName}
+              aria-label={`${expanded ? "Hide" : "Show"} notification details: ${layer.title}`}
+              aria-expanded={expanded}
+              aria-controls={toastBodyId}
+              disabled={leaving}
+              onClick={(event) => {
+                event.stopPropagation();
+                onHeaderClick();
+              }}
+            >
+              {layer.title}
+            </button>
+          ) : (
+            <span data-island-toast-title="" className={titleClassName}>{layer.title}</span>
+          )}
           {role === "current" && closeButton}
         </div>
       </div>
@@ -967,6 +1026,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
           }
         }}
         onPointerLeave={() => {
+          if (dragRef.current) return;
           hoveredRef.current = false;
           resume();
           if (!manualExpandedRef.current && !pureCustom && !leaving) {
@@ -1022,6 +1082,8 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
                 data-open={expanded ? "" : undefined}
                 className={styles?.body}
                 aria-hidden={!expanded || undefined}
+                inert={!expanded || leaving}
+                id={toastBodyId}
               >
                 <div ref={bodyInnerRef} data-island-toast-body-inner="">
                   {bodyNode !== undefined && bodyNode !== null && bodyNode !== "" && (
@@ -1074,7 +1136,7 @@ function ToastActionButton({
       type="button"
       data-island-toast-action=""
       data-type={type}
-      className={className}
+      className={["island-toast-action", className].filter(Boolean).join(" ")}
       onClick={(e) => {
         e.stopPropagation();
         action.onClick();

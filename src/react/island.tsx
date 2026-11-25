@@ -3,6 +3,7 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type CSSProperties,
   type HTMLAttributes,
@@ -65,7 +66,7 @@ export interface IslandProps extends Omit<HTMLAttributes<HTMLDivElement>, "title
   theme?: IslandTheme;
   /** Corner roundness in px when expanded or customized. */
   roundness?: number;
-  /** Smooth 120Hz physics width/height auto-morphing on content or `open` changes. Default `true`. */
+  /** Smooth 120Hz width/height auto-morphing on content changes. Expanded panels animate both grid tracks in CSS. Default `true`. */
   autoMorph?: boolean;
   /** Replaces the title + badge region, e.g. to wrap them in a link. Use `<IslandTitle>` inside. */
   children?: ReactNode;
@@ -134,8 +135,49 @@ export const Island = forwardRef<HTMLDivElement, IslandProps>(function Island(
   const hasLeading = leading !== undefined && leading !== null && typeof leading !== "boolean";
   const hasTrailing = trailing !== undefined && trailing !== null && typeof trailing !== "boolean";
   const hasBadge = badge !== undefined && badge !== null && typeof badge !== "boolean";
+  const hasExpandedPanel = expanded !== undefined;
+  const [panelTransitioning, setPanelTransitioning] = useState(false);
+  const panelTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousOpenRef = useRef(isOpen);
 
-  useAutoMorph(ref, contentRef, motionAdapter, morphEnabled);
+  // The expanded slot animates both grid tracks. Observing its wrapper at the
+  // same time makes ResizeObserver retarget the outer spring from intermediate
+  // grid frames, so repeated open/close cycles can remain partially expanded.
+  // Keep capsule morphing enabled while closed and pause it for the grid track's
+  // open/close transition.
+  useAutoMorph(
+    ref,
+    contentRef,
+    motionAdapter,
+    morphEnabled && (!hasExpandedPanel || (!isOpen && !panelTransitioning)),
+  );
+
+  useIsomorphicLayoutEffect(() => {
+    if (!hasExpandedPanel || previousOpenRef.current === isOpen) return;
+    previousOpenRef.current = isOpen;
+    setPanelTransitioning(true);
+    if (panelTransitionTimerRef.current !== null) clearTimeout(panelTransitionTimerRef.current);
+
+    const computed = typeof getComputedStyle === "function" && ref.current ? getComputedStyle(ref.current) : null;
+    const rawDuration = computed?.getPropertyValue(isOpen ? "--island-expand-duration" : "--island-collapse-duration").trim()
+      || computed?.getPropertyValue("--island-duration").trim()
+      || "300ms";
+    const numericDuration = Number.parseFloat(rawDuration);
+    const durationMs = Number.isFinite(numericDuration)
+      ? numericDuration * (rawDuration.endsWith("s") && !rawDuration.endsWith("ms") ? 1000 : 1)
+      : 300;
+    panelTransitionTimerRef.current = setTimeout(() => {
+      panelTransitionTimerRef.current = null;
+      setPanelTransitioning(false);
+    }, Math.max(0, durationMs) + 64);
+
+    return () => {
+      if (panelTransitionTimerRef.current !== null) {
+        clearTimeout(panelTransitionTimerRef.current);
+        panelTransitionTimerRef.current = null;
+      }
+    };
+  }, [hasExpandedPanel, isOpen]);
 
   // Measure live space from the anchored bar edge to the opposite viewport edge
   // so expanded panels never overflow above the top bar or below the bottom bar.
@@ -227,8 +269,24 @@ export const Island = forwardRef<HTMLDivElement, IslandProps>(function Island(
             )}
             {hasTrailing && <div data-island-trailing="">{trailing}</div>}
           </div>
-          {expanded !== undefined && (
-            <div ref={expandedRef} data-island-expanded="" data-open={isOpen ? "" : undefined} aria-hidden={!isOpen || undefined}>
+          {hasExpandedPanel && (
+            <div
+              ref={expandedRef}
+              data-island-expanded=""
+              data-open={isOpen ? "" : undefined}
+              aria-hidden={!isOpen || undefined}
+              onTransitionEnd={(event) => {
+                if (
+                  event.target !== event.currentTarget ||
+                  !event.propertyName.startsWith("grid-template-")
+                ) return;
+                if (panelTransitionTimerRef.current !== null) {
+                  clearTimeout(panelTransitionTimerRef.current);
+                  panelTransitionTimerRef.current = null;
+                }
+                setPanelTransitioning(false);
+              }}
+            >
               <div data-island-expanded-inner="">{expanded}</div>
             </div>
           )}
@@ -354,7 +412,7 @@ export interface IslandDockItemProps extends ButtonHTMLAttributes<HTMLButtonElem
 
 /** Interactive button item inside `<IslandDock>` with optional badge and active dot. */
 export const IslandDockItem = forwardRef<HTMLButtonElement, IslandDockItemProps>(function IslandDockItem(
-  { icon, label, showLabel = false, active = false, badge, children, type = "button", ...rest },
+  { icon, label, showLabel = false, active = false, badge, children, type = "button", className, ...rest },
   forwarded,
 ) {
   const ariaLabel = rest["aria-label"] ?? label;
@@ -363,6 +421,7 @@ export const IslandDockItem = forwardRef<HTMLButtonElement, IslandDockItemProps>
       ref={forwarded}
       type={type}
       data-island-dock-item=""
+      className={["island-dock-item", className].filter(Boolean).join(" ")}
       data-active={active ? "" : undefined}
       data-labeled={showLabel && label ? "" : undefined}
       aria-label={ariaLabel}

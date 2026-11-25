@@ -2,6 +2,15 @@
 
 All notable changes to this package are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-11-25
+
+### Fixed
+
+- Calibrate spring presets so configured durations match the actual settling time; shorten built-in interaction timings and expose separate expand/collapse CSS timing tokens.
+- Stop `ResizeObserver` feedback from retargeting capsule width/height on each intermediate frame; expanded panels now own both size axes through CSS grid animation.
+- Coalesce simultaneous motion channels into a single DOM flush per display frame, replace per-frame glass data-URL masks with a shared SVG clip path, and throttle swipe rendering to display frames.
+- Remove blur filters from active transitions, normalize dock/toast controls against page-wide button styles, improve toast detail-toggle keyboard access, and keep collapsed toast actions out of the tab order.
+
 ## [0.2.0] - 2026-11-25
 
 ### Added

@@ -17,13 +17,6 @@ export interface IslandGlassBackdropHandle {
   setReveal: (opacity: number) => void;
 }
 
-function buildMaskDataUri(path: string, w: number, h: number): string {
-  const sw = Math.max(1, Number(w.toFixed(2)));
-  const sh = Math.max(1, Number(h.toFixed(2)));
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sw}" height="${sh}" viewBox="0 0 ${sw} ${sh}"><path d="${path}" fill="#000"/></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-}
-
 /**
  * Zero-artifact, cross-browser GPU Liquid Glass surface shared across `<Island>`
  * (capsule mode) and `<IslandToaster>` (analytic gooey silhouette mode).
@@ -40,13 +33,12 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
     const prismId = `island-lg-prism-${rawId}`;
 
     const rootRef = useRef<HTMLDivElement>(null);
-    const layerRef = useRef<HTMLDivElement>(null);
     const rimSvgRef = useRef<SVGSVGElement>(null);
     const clipPathRef = useRef<SVGPathElement>(null);
     const rimBevelRef = useRef<SVGPathElement>(null);
     const rimPrismRef = useRef<SVGPathElement>(null);
     const rimOuterRef = useRef<SVGPathElement>(null);
-    const lastMaskKeyRef = useRef("");
+    const lastGooeyKeyRef = useRef("");
 
     const blur = Math.max(0, glass?.blur ?? 12);
     const saturation = Math.max(0.5, glass?.saturation ?? 1.8);
@@ -62,14 +54,8 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
           const safeW = Math.max(1, w);
           const safeH = Math.max(1, h);
           const key = `${path}|${safeW.toFixed(2)}|${safeH.toFixed(2)}`;
-          if (lastMaskKeyRef.current !== key) {
-            lastMaskKeyRef.current = key;
-            const layer = layerRef.current;
-            if (layer && path) {
-              const maskUrl = buildMaskDataUri(path, safeW, safeH);
-              layer.style.maskImage = maskUrl;
-              layer.style.webkitMaskImage = maskUrl;
-            }
+          if (lastGooeyKeyRef.current !== key) {
+            lastGooeyKeyRef.current = key;
             const svg = rimSvgRef.current;
             if (svg) {
               svg.setAttribute("viewBox", `0 0 ${safeW.toFixed(2)} ${safeH.toFixed(2)}`);
@@ -126,13 +112,13 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
     const prismOpacity = Math.min(0.45, dispersion * 0.28);
     const showOpticalBevel = !lite && specular > 0 && refraction > 0;
     const showPrism = !lite && dispersion > 0.05;
-    // Freeze initial JSX SVG/mask props so React re-renders never overwrite imperative 120Hz `updateGooey` state.
+    // Freeze initial JSX SVG props so React re-renders never overwrite the live
+    // clip path and rim geometry written by `updateGooey`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const mountSvg = useMemo(
       () => ({
         path: initialPath,
         viewBox: `0 0 ${Math.max(1, width)} ${Math.max(1, height)}`,
-        maskUrl: variant === "gooey" && initialPath ? buildMaskDataUri(initialPath, width, height) : undefined,
       }),
       [],
     );
@@ -147,12 +133,11 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
         style={backdropVars}
       >
         <div
-          ref={layerRef}
           data-island-glass-layer=""
           style={{
             backdropFilter: backdropFilterValue,
             WebkitBackdropFilter: backdropFilterValue,
-            ...(mountSvg.maskUrl ? { maskImage: mountSvg.maskUrl, WebkitMaskImage: mountSvg.maskUrl } : null),
+            ...(variant === "gooey" ? { clipPath: `url(#${clipId})`, WebkitClipPath: `url(#${clipId})` } : null),
           }}
         >
           <div data-island-glass-tint="" />
@@ -166,7 +151,7 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
           )}
         </div>
 
-        {variant === "gooey" && specular > 0 && (
+        {variant === "gooey" && (
           <svg
             ref={rimSvgRef}
             data-island-glass-rim=""
@@ -174,7 +159,7 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
             aria-hidden="true"
           >
             <defs>
-              <clipPath id={clipId}>
+              <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
                 <path ref={clipPathRef} d={mountSvg.path} />
               </clipPath>
               <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -214,13 +199,15 @@ export const IslandGlassBackdrop = forwardRef<IslandGlassBackdropHandle, IslandG
                 )}
               </g>
             )}
-            <path
-              ref={rimOuterRef}
-              d={mountSvg.path}
-              fill="none"
-              stroke={`url(#${gradId})`}
-              strokeWidth="1.25"
-            />
+            {specular > 0 && (
+              <path
+                ref={rimOuterRef}
+                d={mountSvg.path}
+                fill="none"
+                stroke={`url(#${gradId})`}
+                strokeWidth="1.25"
+              />
+            )}
           </svg>
         )}
       </div>
