@@ -1,7 +1,7 @@
 {
   "name": "@upstand/island",
-  "version": "0.1.0",
-  "description": "A dynamic-island header for React: busy activity, slots and toasts that morph out of the island. Headless, SSR safe, optional sileo engine.",
+  "version": "0.2.0",
+  "description": "A dynamic-island header, dock, and gooey morphing toast system for React: 120Hz bouncy spring physics, pluggable motion adapters, live Liquid Glass & solid surfaces, full RTL, and 6-position anchoring.",
   "license": "MIT",
   "author": {
     "name": "Upstand",
@@ -21,6 +21,10 @@
     "dynamic-island",
     "toast",
     "notification",
+    "dock",
+    "liquid-glass",
+    "spring-physics",
+    "rtl",
     "header",
     "telegram-mini-app"
   ],
@@ -37,6 +41,10 @@
     "./core": {
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js"
+    },
+    "./motion": {
+      "types": "./dist/motion.d.ts",
+      "import": "./dist/motion.js"
     },
     "./sileo": {
       "types": "./dist/sileo.d.ts",

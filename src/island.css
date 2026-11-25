@@ -1,25 +1,41 @@
 /*
- * @upstand/island default styles.
+ * @upstand/island default styles (v0.2.0).
  * Every rule uses :where() (zero specificity) so your own classes always win.
- * Theme with the --island-* custom properties; set data-island-theme="light"
- * or "system" on any ancestor (or <html>) to switch the palette.
+ * Theme with --island-* custom properties; set data-island-theme="light",
+ * "dark", or "system" on any ancestor (or <html>), or pass `theme` to IslandProvider.
  */
 
 :where(:root) {
   --island-bg: #000;
   --island-fg: #fff;
-  --island-fg-muted: rgb(255 255 255 / 0.75);
+  --island-fg-muted: rgb(255 255 255 / 0.78);
   --island-fg-subtle: rgb(255 255 255 / 0.7);
-  --island-ring: rgb(255 255 255 / 0.1);
-  --island-shadow: 0 6px 20px -6px rgb(0 0 0 / 0.45);
+  --island-ring: rgb(255 255 255 / 0.12);
+  --island-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.45);
   --island-height: 40px;
-  --island-max-width: min(20rem, calc(100vw - 2rem));
+  --island-max-width: min(22rem, calc(100vw - 1.5rem));
+  --island-max-height: calc(100dvh - var(--island-inset) - 1.5rem);
   --island-toast-max-width: min(22rem, calc(100vw - 1.5rem));
-  --island-radius: 9999px;
+  --island-radius: calc(var(--island-height) / 2);
   --island-radius-expanded: 1.25rem;
+  --island-roundness: 16px;
   --island-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --island-duration: 420ms;
   --island-inset: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+  --island-inset-x: calc(env(safe-area-inset-left, 0px) + 0.75rem);
+
+  /* Live Liquid Glass palette tokens (Dark default) */
+  --island-glass-blur: 11px;
+  --island-glass-saturation: 1.85;
+  --island-glass-tint: rgb(18 18 28 / 0.46);
+  --island-glass-fg: rgb(255 255 255 / 0.96);
+  --island-glass-fg-muted: rgb(255 255 255 / 0.84);
+  --island-glass-rim: rgb(255 255 255 / 0.4);
+  --island-glass-rim-soft: rgb(255 255 255 / 0.14);
+  --island-glass-shadow: 0 12px 34px -8px rgb(0 0 0 / 0.44);
+  --island-glass-text-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+
+  /* Semantic accents */
   --island-success: oklch(0.723 0.219 142.136);
   --island-error: oklch(0.637 0.237 25.331);
   --island-warning: oklch(0.795 0.184 86.047);
@@ -31,31 +47,172 @@
 :where([data-island-theme="light"]) {
   --island-bg: #fff;
   --island-fg: #0a0a0a;
-  --island-fg-muted: rgb(10 10 10 / 0.7);
-  --island-fg-subtle: rgb(10 10 10 / 0.6);
+  --island-fg-muted: rgb(10 10 10 / 0.72);
+  --island-fg-subtle: rgb(10 10 10 / 0.62);
   --island-ring: rgb(0 0 0 / 0.08);
-  --island-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.25);
+  --island-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.22);
+
+  --island-glass-tint: rgb(255 255 255 / 0.54);
+  --island-glass-fg: rgb(13 13 18 / 0.95);
+  --island-glass-fg-muted: rgb(16 16 22 / 0.82);
+  --island-glass-rim: rgb(255 255 255 / 0.88);
+  --island-glass-rim-soft: rgb(255 255 255 / 0.36);
+  --island-glass-shadow: 0 10px 28px -8px rgb(0 0 0 / 0.18);
+  --island-glass-text-shadow: 0 0 4px rgb(255 255 255 / 0.6);
 }
 
 @media (prefers-color-scheme: light) {
   :where([data-island-theme="system"]) {
     --island-bg: #fff;
     --island-fg: #0a0a0a;
-    --island-fg-muted: rgb(10 10 10 / 0.7);
-    --island-fg-subtle: rgb(10 10 10 / 0.6);
+    --island-fg-muted: rgb(10 10 10 / 0.72);
+    --island-fg-subtle: rgb(10 10 10 / 0.62);
     --island-ring: rgb(0 0 0 / 0.08);
-    --island-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.25);
+    --island-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.22);
+
+    --island-glass-tint: rgb(255 255 255 / 0.54);
+    --island-glass-fg: rgb(13 13 18 / 0.95);
+    --island-glass-fg-muted: rgb(16 16 22 / 0.82);
+    --island-glass-rim: rgb(255 255 255 / 0.88);
+    --island-glass-rim-soft: rgb(255 255 255 / 0.36);
+    --island-glass-shadow: 0 10px 28px -8px rgb(0 0 0 / 0.18);
+    --island-glass-text-shadow: 0 0 4px rgb(255 255 255 / 0.6);
   }
+}
+
+/* -------------------------- Live Liquid Glass --------------------------- */
+
+:where([data-island-glass-backdrop]) {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+:where([data-island-glass-backdrop][data-variant="capsule"]) {
+  overflow: hidden;
+}
+
+:where([data-island-glass-layer]) {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+:where([data-island-glass-tint]) {
+  position: absolute;
+  inset: 0;
+  background: var(--island-glass-tint);
+}
+
+:where([data-island-glass-sheen]) {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    140deg,
+    rgb(255 255 255 / 0.24) 0%,
+    rgb(255 255 255 / 0.04) 44%,
+    transparent 65%,
+    rgb(255 255 255 / 0.1) 100%
+  );
+}
+
+:where([data-island-glass-sheen][data-variant="capsule"]) {
+  box-shadow:
+    inset 0 1px 0 0 var(--island-glass-rim),
+    inset 0 -1px 0 0 var(--island-glass-rim-soft);
+}
+
+:where([data-island-glass-prism]) {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    135deg,
+    rgb(56 189 248 / 0.85) 0%,
+    rgb(255 255 255 / 0.7) 50%,
+    rgb(244 114 182 / 0.85) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+:where([data-island-glass-rim]) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 10px 24px rgb(0 0 0 / 0.22));
 }
 
 /* ------------------------------- Island ------------------------------- */
 
+:where([data-island-anchor]) {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  max-width: 100%;
+  min-width: 0;
+  height: var(--island-height);
+  overflow: visible;
+  pointer-events: none;
+}
+
+:where([data-island-anchor][data-open]) {
+  z-index: 45;
+}
+
+:where([data-island-anchor][data-position^="top-"]) {
+  align-items: flex-start;
+}
+
+:where([data-island-anchor][data-position^="bottom-"]) {
+  align-items: flex-end;
+}
+
+:where([data-island-anchor][data-position$="-center"]) {
+  justify-content: center;
+}
+
+:where([data-island-anchor][data-position$="-left"]) {
+  justify-content: flex-start;
+}
+
+:where([data-island-anchor][data-position$="-right"]) {
+  justify-content: flex-end;
+}
+
+:where([data-island-anchor][data-mode="dock"][data-position^="top-"]) {
+  height: calc(var(--island-height) + env(safe-area-inset-top, 0px));
+}
+
+:where([data-island-anchor][data-mode="dock"][data-position^="bottom-"]) {
+  height: calc(var(--island-height) + env(safe-area-inset-bottom, 0px));
+}
+
 :where([data-island]) {
   position: relative;
+  box-sizing: border-box;
   display: flex;
+  flex: none;
   flex-direction: column;
   min-width: 0;
   max-width: var(--island-max-width);
+  max-height: min(var(--island-max-height), var(--island-available-height, 100dvh));
   overflow: hidden;
   border-radius: var(--island-radius);
   background: var(--island-bg);
@@ -67,11 +224,44 @@
     opacity var(--island-duration) var(--island-ease),
     transform var(--island-duration) var(--island-ease),
     filter var(--island-duration) var(--island-ease),
-    border-radius var(--island-duration) var(--island-ease);
+    border-radius var(--island-duration) var(--island-ease),
+    background 260ms ease,
+    color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+:where([data-island][data-position^="top-"]) {
+  justify-content: flex-start;
+}
+
+:where([data-island][data-position^="bottom-"]) {
+  justify-content: flex-end;
 }
 
 :where([data-island][data-open]) {
   border-radius: var(--island-radius-expanded);
+}
+
+:where([data-island][data-surface="liquid-glass"]) {
+  background: transparent;
+  color: var(--island-glass-fg);
+  text-shadow: var(--island-glass-text-shadow);
+  box-shadow: var(--island-glass-shadow);
+}
+
+/* Dock mode: flush edge-attached bar/notch geometry */
+:where([data-island][data-mode="dock"][data-position^="top-"]) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: var(--island-radius-expanded);
+  border-bottom-right-radius: var(--island-radius-expanded);
+}
+
+:where([data-island][data-mode="dock"][data-position^="bottom-"]) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-top-left-radius: var(--island-radius-expanded);
+  border-top-right-radius: var(--island-radius-expanded);
 }
 
 /* A toast takes over: the island stretches and fades into it, then settles back. */
@@ -82,23 +272,73 @@
   transform: scale(1.12, 0.96);
 }
 
-:where([data-island-viewport][data-position="top-center"] [data-island]),
-:where([data-island-toaster][data-position="top-center"] [data-island-toast]) {
+:where([data-island][data-position^="top-"]),
+:where([data-island-viewport][data-position^="top-"] [data-island]),
+:where([data-island-toaster][data-position^="top-"] [data-island-toast]) {
   transform-origin: 50% calc(var(--island-height) / 2);
 }
 
-:where([data-island-viewport][data-position="bottom-center"] [data-island]),
-:where([data-island-toaster][data-position="bottom-center"] [data-island-toast]) {
+:where([data-island][data-position^="bottom-"]),
+:where([data-island-viewport][data-position^="bottom-"] [data-island]),
+:where([data-island-toaster][data-position^="bottom-"] [data-island-toast]) {
   transform-origin: 50% calc(100% - var(--island-height) / 2);
+}
+
+:where([data-island][data-position$="-left"]) {
+  transform-origin: 0% 50%;
+}
+
+:where([data-island][data-position$="-right"]) {
+  transform-origin: 100% 50%;
+}
+
+:where([data-island-content]) {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 100%;
+  max-width: inherit;
+  max-height: inherit;
+  box-sizing: border-box;
+}
+
+/* Bottom-anchored islands expand upward cleanly above their bar. */
+:where([data-island][data-position^="bottom-"] [data-island-content]) {
+  flex-direction: column-reverse;
+}
+
+:where([data-island][data-mode="dock"][data-position^="top-"] [data-island-content]) {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+:where([data-island][data-mode="dock"][data-position^="bottom-"] [data-island-content]) {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 :where([data-island-bar]) {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 0.25rem;
   height: var(--island-height);
   padding-inline: 0.25rem;
   min-width: 0;
+}
+
+:where([data-island-leading], [data-island-trailing]) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: calc(var(--island-height) - 0.5rem);
+  min-height: calc(var(--island-height) - 0.5rem);
+}
+
+:where([data-island-leading] > *, [data-island-trailing] > *, [data-island-leading] svg, [data-island-trailing] svg) {
+  flex-shrink: 0;
 }
 
 :where([data-island-body]) {
@@ -120,11 +360,17 @@
 
 :where([data-island-title]) {
   display: grid;
+  flex: 0 1 auto;
   align-items: center;
   min-width: 0;
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25rem;
+  text-align: start;
+}
+
+:where([data-island][data-surface="liquid-glass"] [data-island-title]) {
+  font-weight: 600;
 }
 
 :where([data-island-title-text], [data-island-busy-label]) {
@@ -136,7 +382,7 @@
 }
 
 :where([data-island-title-text]) {
-  transition: opacity 300ms ease;
+  transition: opacity 280ms ease;
 }
 
 :where([data-island-title-text][data-hidden]) {
@@ -145,41 +391,67 @@
 
 :where([data-island-busy-label]) {
   color: var(--island-fg-muted);
-  animation: island-label-in 300ms var(--island-ease) backwards;
+  animation: island-label-in 280ms var(--island-ease) backwards;
+}
+
+:where([data-island][data-surface="liquid-glass"] [data-island-busy-label]) {
+  color: var(--island-glass-fg-muted);
+}
+
+:where([data-island-badge]) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
 }
 
 :where([data-island-expanded]) {
   display: grid;
   grid-template-rows: 0fr;
   grid-template-columns: 0fr;
+  min-height: 0;
+  opacity: 0;
   transition:
     grid-template-rows var(--island-duration) var(--island-ease),
-    grid-template-columns var(--island-duration) var(--island-ease);
+    grid-template-columns var(--island-duration) var(--island-ease),
+    opacity 220ms ease;
+}
+
+:where([data-island][data-auto-morph] [data-island-expanded]) {
+  transition: opacity 220ms ease;
 }
 
 :where([data-island-expanded][data-open]) {
   grid-template-rows: 1fr;
   grid-template-columns: 1fr;
+  opacity: 1;
 }
 
 :where([data-island-expanded-inner]) {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+  text-align: start;
+}
+
+:where([data-island-expanded][data-open] [data-island-expanded-inner]) {
+  max-height: calc(min(var(--island-max-height), var(--island-available-height, 100dvh)) - var(--island-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* Background activity: a highlight sweeps along the island's lower edge. */
 :where([data-island-progress]) {
   pointer-events: none;
   position: absolute;
+  z-index: 2;
   inset-inline: 1.25rem;
   bottom: 3px;
   height: 2px;
   overflow: hidden;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--island-fg) 10%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
   opacity: 0;
-  transition: opacity 300ms ease;
+  transition: opacity 260ms ease;
 }
 
 :where([data-island-progress][data-active]) {
@@ -192,11 +464,11 @@
   inset-inline-start: 0;
   width: 40%;
   border-radius: 9999px;
-  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--island-fg) 85%, transparent), transparent);
+  background: linear-gradient(to right, transparent, color-mix(in srgb, currentColor 85%, transparent), transparent);
   animation: island-progress 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-:where([dir="rtl"]) :where([data-island-progress-bar]) {
+:where([dir="rtl"], [dir="rtl"] *, [data-dir="rtl"], [data-dir="rtl"] *) :where([data-island-progress-bar]) {
   animation-name: island-progress-rtl;
 }
 
@@ -213,79 +485,271 @@
   border: 0;
 }
 
-:where([data-island-viewport]) {
-  position: fixed;
-  inset-inline: 0;
-  z-index: 40;
-  display: flex;
+/* ------------------------------ Dock Items ------------------------------ */
+
+:where([data-island-dock]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-inline: 0.25rem;
+  height: 100%;
+}
+
+:where([data-island-dock-item]) {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
   justify-content: center;
+  gap: 0.375rem;
+  min-width: 30px;
+  height: 30px;
+  padding-inline: 0.375rem;
+  border: 0;
+  border-radius: 9999px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    transform 240ms var(--island-ease),
+    background-color 180ms ease;
+}
+
+:where([data-island-dock-item][data-labeled]) {
+  padding-inline: 0.625rem;
+}
+
+:where([data-island-dock-item]):hover {
+  transform: translateY(-1px) scale(1.08);
+  background: color-mix(in srgb, currentColor 11%, transparent);
+}
+
+:where([data-island][data-position^="bottom-"] [data-island-dock-item]):hover {
+  transform: translateY(-2px) scale(1.08);
+}
+
+:where([data-island][data-position^="top-"] [data-island-dock-item]):hover {
+  transform: translateY(1px) scale(1.08);
+}
+
+:where([data-island-dock-item]):active {
+  transform: scale(0.95);
+}
+
+:where([data-island-dock-item][data-active]) {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+:where([data-island-dock-item]):focus-visible {
+  outline: 2px solid color-mix(in srgb, currentColor 65%, transparent);
+  outline-offset: 2px;
+}
+
+:where([data-island-dock-icon]) {
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+:where([data-island-dock-label]) {
+  white-space: nowrap;
+}
+
+:where([data-island-dock-dot]) {
+  position: absolute;
+  bottom: 2px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+:where([dir="rtl"], [data-dir="rtl"]) :where([data-island-dock-dot]) {
+  transform: translateX(50%);
+}
+
+:where([data-island-dock-badge]) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--island-action);
+  color: #fff;
+}
+
+:where([data-island-dock-badge][data-dot]) {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 4px;
+  min-width: 6px;
+  width: 6px;
+  height: 6px;
+  padding: 0;
+}
+
+:where([data-island-dock-divider]) {
+  display: inline-block;
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin-inline: 0.125rem;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+/* --------------------- 6-Position Viewport & Toaster -------------------- */
+
+:where([data-island-viewport]),
+:where([data-island-toaster]) {
+  position: fixed;
+  display: flex;
   pointer-events: none;
 }
 
-:where([data-island-viewport][data-position="top-center"]) {
-  top: var(--island-inset);
+:where([data-island-viewport]) {
+  z-index: 40;
 }
 
-:where([data-island-viewport][data-position="bottom-center"]) {
+:where([data-island-toaster]) {
+  z-index: 50;
+}
+
+:where([data-island-viewport][data-position^="top-"]),
+:where([data-island-toaster][data-position^="top-"]) {
+  top: var(--island-inset);
+  align-items: flex-start;
+}
+
+:where([data-island-viewport][data-position^="bottom-"]),
+:where([data-island-toaster][data-position^="bottom-"]) {
   --island-inset: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
   bottom: var(--island-inset);
+  align-items: flex-end;
+}
+
+:where([data-island-viewport][data-mode="dock"]),
+:where([data-island-toaster][data-mode="dock"]) {
+  --island-inset: 0px;
+}
+
+/* Physical left / center / right so RTL reading flow never flips physical anchor position. */
+:where([data-island-viewport][data-position$="-center"]),
+:where([data-island-toaster][data-position$="-center"]) {
+  left: 0;
+  right: 0;
+  justify-content: center;
+}
+
+:where([data-island-viewport][data-position$="-left"]),
+:where([data-island-toaster][data-position$="-left"]) {
+  left: var(--island-inset-x);
+  right: auto;
+  justify-content: flex-start;
+}
+
+:where([data-island-viewport][data-position$="-right"]),
+:where([data-island-toaster][data-position$="-right"]) {
+  right: var(--island-inset-x);
+  left: auto;
+  justify-content: flex-end;
 }
 
 /* ------------------------------- Toasts ------------------------------- */
 
-:where([data-island-toaster]) {
-  position: fixed;
-  inset-inline: 0;
-  z-index: 50;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-:where([data-island-toaster][data-position="top-center"]) {
-  top: var(--island-inset);
-}
-
-:where([data-island-toaster][data-position="bottom-center"]) {
-  --island-inset: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
-  bottom: var(--island-inset);
-}
-
 :where([data-island-toast]) {
-  --island-swipe: 0px;
-  pointer-events: auto;
-  touch-action: none;
-  display: flex;
-  flex-direction: column;
-  min-width: min(12rem, var(--island-toast-max-width));
-  max-width: var(--island-toast-max-width);
-  overflow: hidden;
-  border-radius: calc(var(--island-height) / 2);
-  background: var(--island-bg);
-  color: var(--island-fg);
-  box-shadow: var(--island-shadow), 0 0 0 1px var(--island-ring);
-  transform: translateY(var(--island-swipe));
-  animation: island-toast-in var(--island-duration) var(--island-ease) backwards;
-  transition:
-    opacity var(--island-duration) var(--island-ease),
-    transform var(--island-duration) var(--island-ease),
-    filter var(--island-duration) var(--island-ease),
-    border-radius var(--island-duration) var(--island-ease);
-}
-
-:where([data-island-toast][data-dragging]) {
-  transition: none;
-}
-
-:where([data-island-toast][data-expanded]) {
-  border-radius: var(--island-radius-expanded);
-}
-
-:where([data-island-toast][data-state="closed"]) {
+  position: relative;
+  flex: none;
   pointer-events: none;
-  opacity: 0;
-  filter: blur(3px);
-  transform: translateY(var(--island-swipe)) scale(0.92, 0.96);
+  touch-action: none;
+  overflow: visible;
+  width: var(--island-toast-max-width);
+  height: var(--island-height);
+  color: var(--island-fg);
+  background: transparent;
+  transform-origin: center;
+  will-change: transform;
+}
+
+:where([data-island-toast][data-surface="liquid-glass"]) {
+  color: var(--island-glass-fg);
+  text-shadow: var(--island-glass-text-shadow);
+}
+
+:where([data-island-toast-surface]) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.28));
+}
+
+:where([data-island-toast-path]) {
+  fill: var(--island-bg);
+  stroke: var(--island-ring);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+:where([data-island-toast-clip]) {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+:where([data-island-toast-header-wrap]) {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  height: var(--island-height);
+  overflow: hidden;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:where([data-island-toast-header-wrap][data-clickable]) {
+  cursor: pointer;
+}
+
+:where([data-island-toast-header-stack]) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: var(--island-toast-max-width);
+  height: 100%;
+}
+
+:where([data-island-toast-header-layer="current"]) {
+  position: relative;
+  z-index: 1;
+  animation: island-header-enter 380ms var(--island-ease) both;
+}
+
+:where([data-island-toast-header-layer="prev"]) {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  z-index: 0;
+  pointer-events: none;
+  animation: island-header-exit 340ms ease forwards;
 }
 
 :where([data-island-toast-header]) {
@@ -294,6 +758,7 @@
   gap: 0.5rem;
   height: var(--island-height);
   padding-inline: 0.5rem;
+  white-space: nowrap;
 }
 
 :where([data-island-toast-icon]) {
@@ -308,20 +773,38 @@
   background: color-mix(in oklch, var(--_c) 20%, transparent);
 }
 
+:where([data-surface="liquid-glass"] [data-island-toast-icon]) {
+  color: #fff;
+  background: var(--_c);
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-icon][data-type="loading"]) {
+  color: var(--island-glass-fg);
+  background: color-mix(in srgb, var(--island-glass-fg) 16%, transparent);
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-icon][data-type="warning"]) {
+  color: #111114;
+}
+
 :where([data-island-toast-title]) {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 500;
   line-height: 1.25rem;
-  animation: island-label-in 300ms var(--island-ease) backwards;
+  text-align: start;
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-title]) {
+  font-weight: 600;
 }
 
 :where([data-island-toast-title]:last-child) {
-  padding-inline-end: 0.5rem;
+  padding-inline-end: 0.375rem;
 }
 
 :where([data-island-toast-close]) {
@@ -337,29 +820,66 @@
   cursor: pointer;
 }
 
+:where([data-surface="liquid-glass"] [data-island-toast-close]) {
+  color: var(--island-glass-fg-muted);
+}
+
 :where([data-island-toast-close]):hover {
-  color: var(--island-fg);
-  background: color-mix(in srgb, var(--island-fg) 10%, transparent);
+  color: currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+:where([data-island-toast-icon] svg, [data-island-toast-close] svg) {
+  flex-shrink: 0;
 }
 
 :where([data-island-toast-body]) {
-  display: grid;
-  grid-template-rows: 0fr;
-  animation: island-toast-expand var(--island-duration) var(--island-ease) 120ms both;
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms ease 60ms;
+}
+
+:where([data-island-toast-body][data-edge="top"]) {
+  top: var(--island-height);
+}
+
+:where([data-island-toast-body][data-edge="bottom"]) {
+  bottom: var(--island-height);
+}
+
+:where([data-island-toast-body][data-open]) {
+  pointer-events: auto;
+  opacity: 1;
 }
 
 :where([data-island-toast-body-inner]) {
   min-height: 0;
-  overflow: hidden;
+  max-height: calc(100dvh - var(--island-height) - var(--island-inset) - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   text-align: start;
 }
 
 :where([data-island-toast-description]) {
-  padding: 0 1rem 0.875rem;
+  padding: 0.875rem 1rem 0.875rem;
   text-align: start;
   font-size: 0.8125rem;
-  line-height: 1.25rem;
+  line-height: 1.3rem;
   color: var(--island-fg-subtle);
+}
+
+:where([data-island-toast-body][data-edge="bottom"] [data-island-toast-description]) {
+  padding: 0.875rem 1rem 0.75rem;
+}
+
+:where([data-island-toast-description]:only-child) {
+  padding-bottom: 1rem;
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-description]) {
+  color: var(--island-glass-fg-muted);
 }
 
 :where([data-island-toast-action]) {
@@ -369,22 +889,44 @@
   justify-content: center;
   margin: 0 1rem 0.875rem;
   height: 1.75rem;
-  padding-inline: 0.625rem;
+  padding-inline: 0.75rem;
   border: 0;
   border-radius: 9999px;
+  font: inherit;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--_c);
-  background: color-mix(in oklch, var(--_c) 15%, transparent);
+  background: color-mix(in oklch, var(--_c) 16%, transparent);
   cursor: pointer;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+
+:where([data-island-toast-action]):hover {
+  background: color-mix(in oklch, var(--_c) 26%, transparent);
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-action]) {
+  color: #fff;
+  font-weight: 600;
+  background: color-mix(in oklch, var(--_c) 90%, transparent);
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-action]):hover {
+  background: var(--_c);
+}
+
+:where([data-surface="liquid-glass"] [data-island-toast-action][data-type="warning"]) {
+  color: #111114;
 }
 
 :where([data-island-toast-action]:first-child) {
-  margin-top: 0.125rem;
+  margin-top: 0.875rem;
 }
 
 :where([data-island-toast-custom]) {
   position: relative;
+  pointer-events: auto;
+  text-align: start;
 }
 
 :where([data-island-toast][data-type="custom"] [data-island-toast-custom] [data-island-toast-close]) {
@@ -401,12 +943,18 @@
 :where([data-type="action"]) { --_c: var(--island-action); }
 
 :where([data-island-spin]) {
+  transform-origin: center;
   animation: island-spin 0.9s linear infinite;
 }
 
 :where([data-island-toast-close], [data-island-toast-action]):focus-visible {
-  outline: 2px solid var(--_c, var(--island-fg));
+  outline: 2px solid var(--_c, currentColor);
   outline-offset: 2px;
+}
+
+/* Sileo engine RTL alignment assist */
+:where([data-island-sileo][dir="rtl"]) :where([data-sileo-description]) {
+  text-align: start;
 }
 
 /* ----------------------------- Keyframes ------------------------------ */
@@ -426,14 +974,14 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* The toast starts in the island's shape, then grows to its own. */
-@keyframes island-toast-in {
-  from { opacity: 0; filter: blur(3px); transform: scale(0.89, 1.04); }
-  to { opacity: 1; filter: blur(0); transform: translateY(var(--island-swipe)); }
+@keyframes island-header-enter {
+  from { opacity: 0; filter: blur(5px); }
+  to { opacity: 1; filter: blur(0); }
 }
 
-@keyframes island-toast-expand {
-  to { grid-template-rows: 1fr; }
+@keyframes island-header-exit {
+  from { opacity: 1; filter: blur(0); }
+  to { opacity: 0; filter: blur(5px); }
 }
 
 @keyframes island-spin {
@@ -441,19 +989,33 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :where([data-island], [data-island-toast], [data-island-title-text], [data-island-progress], [data-island-expanded]) {
+  :where(
+    [data-island],
+    [data-island-toast],
+    [data-island-title-text],
+    [data-island-progress],
+    [data-island-expanded],
+    [data-island-dock-item],
+    [data-island-toast-body]
+  ) {
     transition: none;
   }
   :where([data-island][data-hidden]) {
     filter: none;
     transform: none;
   }
-  :where([data-island-busy-label], [data-island-toast-title], [data-island-toast]) {
+  :where([data-island-dock-item]):hover {
+    transform: none;
+  }
+  :where(
+    [data-island-busy-label],
+    [data-island-toast-header-layer],
+    [data-island-toast]
+  ) {
     animation: none;
   }
-  :where([data-island-toast-body]) {
-    animation: none;
-    grid-template-rows: 1fr;
+  :where([data-island-toast-body][data-open]) {
+    opacity: 1;
   }
   /* No sweep: a steady, dimmer full-width bar still says "working". */
   :where([data-island-progress-bar]) {

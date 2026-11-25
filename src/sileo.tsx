@@ -9,11 +9,11 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { Toaster, sileo, type SileoOptions, type SileoState, type SileoStyles } from "sileo";
 
-import type { IslandToastType } from "./core/types";
+import { getPositionEdges, type IslandToastType } from "./core/types";
 import type { IslandToastEngine, IslandToastEngineProps } from "./react/types";
 
 export interface SileoEngineOptions {
-  /** Sileo theme. Default `"dark"`. */
+  /** Sileo theme override. When omitted, follows the Island theme. */
   theme?: "light" | "dark" | "system";
   /** Toast fill colour (an SVG fill, so a literal colour, not a CSS variable). */
   fill?: string;
@@ -36,11 +36,25 @@ const STATE: Record<IslandToastType, SileoState> = {
 };
 
 /** Build a sileo engine with your own sileo options. */
-export function createSileoEngine({ theme = "dark", fill, styles, roundness }: SileoEngineOptions = {}): IslandToastEngine {
-  const SileoEngine: IslandToastEngine = function SileoEngine({ toast, store, position, inset }: IslandToastEngineProps) {
+export function createSileoEngine({ theme: defaultTheme, fill, styles, roundness: defaultRoundness }: SileoEngineOptions = {}): IslandToastEngine {
+  const SileoEngine: IslandToastEngine = function SileoEngine({
+    toast,
+    store,
+    position,
+    inset,
+    insetX,
+    dir,
+    theme: islandTheme,
+    roundness: islandRoundness,
+    autopilot,
+  }: IslandToastEngineProps) {
     const wrapper = useRef<HTMLDivElement>(null);
     const shown = useRef<string | null>(null);
     const swipeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const resolvedTheme = defaultTheme ?? islandTheme;
+    const resolvedRoundness = defaultRoundness ?? toast?.roundness ?? islandRoundness;
+    const resolvedFill = toast?.fill ?? fill;
 
     useEffect(() => {
       if (!toast) {
@@ -60,6 +74,9 @@ export function createSileoEngine({ theme = "dark", fill, styles, roundness }: S
         duration: toast.duration,
         ...(toast.icon !== undefined && { icon: toast.icon as ReactNode }),
         position,
+        ...(resolvedFill !== undefined && { fill: resolvedFill }),
+        ...(resolvedRoundness !== undefined && { roundness: resolvedRoundness }),
+        ...(autopilot !== undefined && { autopilot }),
         ...(action && {
           button: {
             title: action.label,
@@ -70,7 +87,7 @@ export function createSileoEngine({ theme = "dark", fill, styles, roundness }: S
           },
         }),
       } as SileoOptions & { id: string });
-    }, [toast, store, position]);
+    }, [toast, store, position, resolvedFill, resolvedRoundness, autopilot]);
 
     useEffect(() => () => {
       if (swipeTimer.current !== null) clearTimeout(swipeTimer.current);
@@ -93,11 +110,19 @@ export function createSileoEngine({ theme = "dark", fill, styles, roundness }: S
       }, 120);
     };
 
-    const edge = position === "top-center" ? "top" : "bottom";
+    const edges = getPositionEdges(position);
+    const offset: Record<string, string> = {
+      [edges.vertical]: `calc(${inset} - ${SILEO_VIEWPORT_PADDING})`,
+      ...(edges.horizontal !== "center" && {
+        [edges.horizontal]: `calc(${insetX} - ${SILEO_VIEWPORT_PADDING})`,
+      }),
+    };
+
     return (
       <div
         ref={wrapper}
         data-island-sileo=""
+        dir={dir}
         style={{ display: "contents", "--sileo-height": "var(--island-height)" } as CSSProperties}
         onMouseEnter={store.pause}
         onMouseLeave={store.resume}
@@ -105,9 +130,14 @@ export function createSileoEngine({ theme = "dark", fill, styles, roundness }: S
       >
         <Toaster
           position={position}
-          offset={{ [edge]: `calc(${inset} - ${SILEO_VIEWPORT_PADDING})` }}
-          theme={theme}
-          options={{ ...(fill !== undefined && { fill }), ...(styles && { styles }), ...(roundness !== undefined && { roundness }) }}
+          offset={offset}
+          theme={resolvedTheme}
+          options={{
+            ...(fill !== undefined && { fill }),
+            ...(styles && { styles }),
+            ...(resolvedRoundness !== undefined && { roundness: resolvedRoundness }),
+            ...(autopilot !== undefined && { autopilot }),
+          }}
         />
       </div>
     );
@@ -117,5 +147,5 @@ export function createSileoEngine({ theme = "dark", fill, styles, roundness }: S
   return SileoEngine;
 }
 
-/** Sileo engine with default options (dark theme). */
+/** Sileo engine with default options. */
 export const sileoEngine: IslandToastEngine = /* @__PURE__ */ createSileoEngine();

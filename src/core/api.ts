@@ -1,5 +1,16 @@
 import { createIslandStore, type IslandStore } from "./store";
-import type { IslandPromiseMessages, IslandToastAction, IslandToastMessage, IslandToastOptions, IslandToastType } from "./types";
+import type {
+  IslandDirection,
+  IslandMode,
+  IslandPosition,
+  IslandPromiseMessages,
+  IslandSurface,
+  IslandTheme,
+  IslandToastAction,
+  IslandToastMessage,
+  IslandToastOptions,
+  IslandToastType,
+} from "./types";
 
 type ToastFn<O> = (message: string | O, options?: O) => string;
 
@@ -25,6 +36,16 @@ export interface IslandApi<O extends IslandToastOptions = IslandToastOptions> {
   toast: IslandToastApi<O>;
   /** Mark the island busy (e.g. paging); call the returned function when done. */
   busy: (label?: string | null) => () => void;
+  /** Update the island anchor position across viewport and toaster. */
+  setPosition: (position: IslandPosition) => void;
+  /** Switch between `"floating"` capsule and `"dock"` edge-attached mode. */
+  setMode: (mode: IslandMode) => void;
+  /** Switch between `"solid"` and `"liquid-glass"` surfaces. */
+  setSurface: (surface: IslandSurface) => void;
+  /** Set reading direction (`"ltr"`, `"rtl"`, or `"auto"`). */
+  setDir: (dir: IslandDirection) => void;
+  /** Set palette theme (`"dark"`, `"light"`, or `"system"`). */
+  setTheme: (theme: IslandTheme) => void;
   readonly store: IslandStore;
 }
 
@@ -49,6 +70,11 @@ export function createIslandApi<O extends IslandToastOptions = IslandToastOption
       promise: (promise, messages) => getStore().promise(promise, messages),
     },
     busy: (label) => getStore().busy(label),
+    setPosition: (position) => getStore().setPosition(position),
+    setMode: (mode) => getStore().setMode(mode),
+    setSurface: (surface) => getStore().setSurface(surface),
+    setDir: (dir) => getStore().setDir(dir),
+    setTheme: (theme) => getStore().setTheme(theme),
     get store() {
       return getStore();
     },

@@ -9,6 +9,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     core: "src/core/index.ts",
+    motion: "src/core/motion.ts",
     sileo: "src/sileo.tsx",
   },
   format: ["esm"],

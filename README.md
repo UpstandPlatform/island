@@ -4,18 +4,18 @@
 [![CI](https://github.com/UpstandPlatform/island/actions/workflows/ci.yml/badge.svg)](https://github.com/UpstandPlatform/island/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/%40upstand%2Fisland)](https://github.com/UpstandPlatform/island/blob/main/LICENSE)
 
-A dynamic-island header for React. One black capsule shows where you are, sweeps a bar while background work runs, expands for inline panels, and turns into your toasts: a toast opens right where the island sits, and the island stretches and fades into it, then settles back when the toast leaves.
+A customizable, zero-dependency dynamic island, dock, and gooey toast system for React. One surface anchors to any of 6 viewport positions, morphs smoothly at **120Hz** via **pluggable spring/easing physics**, switches live between **Solid** and **Liquid Glass** materials, adapts natively to **RTL**, and turns seamlessly into rich gooey notifications.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/hero-demo.gif" alt="@upstand/island hero walkthrough: idle capsule, busy sweep, expanded drawer, promise toast, and action toast" width="720" />
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/hero-demo.gif" alt="@upstand/island v0.2.0 hero demo: 120Hz bouncy morphs, busy sweep, expanded drawer, promise toast, live Liquid Glass, and bottom Dock mode" width="760" />
 </p>
 
-- **Layered.** A framework-free core (busy activity, toast queue, slots, events), React bindings, and an optional stylesheet.
-- **Headless.** `<Island>` renders structure and `data-*` state. Use the bundled CSS or style it yourself.
-- **Pluggable renderer.** A built-in toast renderer, or [sileo](https://github.com/hiaaryan/sileo) through an engine adapter (optional peer).
-- **SSR safe.** `useSyncExternalStore` with a stable server snapshot, and nothing touches `window` at import.
-- **No strings inside.** Every label comes from you, so it works in any language. RTL and reduced motion are supported.
-- **Accessible.** Polite or assertive announcements, it never moves focus, and the hidden island (along with collapsed `expanded` panels) is `inert`.
+- **Zero dependencies & layered architecture.** Framework-free core (`@upstand/island/core`), pluggable 120Hz motion engine (`@upstand/island/motion`), headless React primitives (`@upstand/island`), optional stylesheet (`@upstand/island/island.css`), and optional [sileo](https://github.com/hiaaryan/sileo) engine adapter (`@upstand/island/sileo`).
+- **120Hz physics & pluggable motion adapters.** Exact analytical spring solver (`60Hz` / `120Hz` / `240Hz+`) with 6 presets (`bouncy`, `smooth`, `snappy`, `elastic`, `gentle`, `instant`) plus `createSpringMotion`, `createEasingMotion`, `createCssMotion`, and the open `IslandMotionAdapter` interface.
+- **Solid & live Liquid Glass.** Switch globally, per component, or per toast between crisp `solid` capsules and GPU-accelerated refractive `liquid-glass` surfaces with Fresnel bevel, chromatic edge dispersion, specular rim, and dark/light/system themes.
+- **6-position system & Dock mode.** Anchor to `top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, or `bottom-right` (with automatic upward expansion from the bottom), and switch between `"floating"` capsules and edge-attached `"dock"` bars with `<IslandDock>`, `<IslandDockItem>`, and `<IslandDockDivider>`.
+- **Full RTL & viewport-safe expansion.** `dir="auto" | "ltr" | "rtl"` watches ancestor `[dir]` live, mirrors headers/progress sweeps, and keeps `[data-island-anchor]` pinned so top/bottom expanded panels never go off-screen.
+- **SSR safe & accessible.** Stable `getServerSnapshot()`, zero `window` access on import, polite/assertive live regions, reduced-motion fallbacks, and `inert` isolation when hidden or collapsed.
 
 ## Installation
 
@@ -26,261 +26,420 @@ pnpm add @upstand/island
 # or
 bun add @upstand/island
 
-# optional, for the sileo engine
+# optional, only needed for @upstand/island/sileo
 npm install sileo
 ```
 
 ## Quick start
 
 ```tsx
-import { IslandProvider, Island, IslandToaster, island } from "@upstand/island";
+import { IslandProvider, Island, IslandViewport, IslandToaster, island } from "@upstand/island";
 import "@upstand/island/island.css";
 
 export function App() {
   return (
-    <IslandProvider>
-      <header style={{ position: "fixed", top: 8, insetInline: 0, display: "flex", justifyContent: "center" }}>
-        <Island title="Inbox" trailing={<Avatar />} />
-      </header>
-      <IslandToaster inset="8px" />
+    <IslandProvider position="top-center" surface="solid" motion="bouncy" theme="dark" dir="auto">
+      <IslandViewport>
+        <Island
+          leading={<InboxIcon />}
+          title="Inbox"
+          badge={<Badge>3</Badge>}
+          trailing={<Avatar />}
+        />
+      </IslandViewport>
+      <IslandToaster />
       <Page />
     </IslandProvider>
   );
 }
 
 function SaveButton() {
-  return <button onClick={() => island.toast.success("Saved", { description: "Your changes are live." })}>Save</button>;
+  return (
+    <button
+      onClick={() =>
+        island.toast.success("Saved", {
+          description: "Your changes are live everywhere.",
+          surface: "liquid-glass",
+        })
+      }
+    >
+      Save
+    </button>
+  );
 }
 ```
 
-With Tailwind v4, import the stylesheet into a layer so your utilities override it:
+With Tailwind v4, import the stylesheet into a layer so your utility classes override it:
 
 ```css
 @import "@upstand/island/island.css" layer(components);
 ```
 
-## How It Works
+## Architecture & Anatomy
 
-The island shares a single fixed surface (`--island-inset` from the viewport edge) coordinated by a framework-free store:
+The island coordinates all resting bars, docks, busy indicators, expanded drawers, and morphing toasts around a shared store and aligned viewport coordinates:
 
-1. **Single-capsule takeover.** `<Island>` sits inside your header or `<IslandViewport>` (`z-index: 40`). When a toast becomes active, `<Island>` applies `data-hidden`, `aria-hidden="true"`, and `inert`, stretching (`scale(1.12, 0.96)`) and blurring out while `<IslandToaster>` (`z-index: 50`) opens directly at the matching `inset`. When the toast dismisses, `<Island>` settles back interactively.
-2. **Ref-counted busy stack.** Every `island.busy(label)` call pushes a token onto an active map and returns an idempotent `done()` callback. Multiple concurrent tasks stack cleanly: the newest labelled registration owns the crossfaded `<IslandTitle>` and sweeping `<IslandProgress />` highlight, falling back to earlier active labels as tasks complete.
-3. **Mounted slot stack.** Route or view components publish contextual header props with `useIslandSlot(key, value)`. The most recently mounted publisher wins, and releasing/unmounting restores the previous publisher automatically.
-4. **Store-owned toast lifecycle.** The store handles ids, per-type timers, `replace`/`queue` strategies, hover/focus pause-and-resume, promise settling, and haptic callbacks—while engines (`DefaultIslandToastEngine` or `sileoEngine`) only render the active toast and report user dismissals back.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/anatomy.png" alt="@upstand/island anatomy and takeover lifecycle diagram" width="880" />
-</p>
-
-## States & Animations
-
-### Ref-counted busy activity & expandable panels
-
-`island.busy()` crossfades the title to the newest active task and activates the bottom sweep bar; `<Island expanded={...} open />` smoothly expands both width and height (`grid-template-rows` / `grid-template-columns: 0fr → 1fr`) while morphing the capsule radius.
+1. **Single-capsule takeover & viewport-safe anchoring.** `<Island>` mounts inside `[data-island-anchor]`, pinning the bar height at the header/footer edge so `top-*` expands strictly downward and `bottom-*` expands strictly upward (clamped cleanly to available viewport height with internal scrolling). When a toast opens, `<Island>` sets `data-hidden`, `aria-hidden="true"`, and `inert` while `<IslandToaster>` morphs at the exact same anchor.
+2. **Analytic C1 gooey geometry.** `DefaultIslandToastEngine` renders C1-continuous cubic Bezier shoulders (`buildGooeyPath` + `computePillX`) driven at 120Hz via direct DOM/SVG updates (`useMotionController`), supporting blur-crossfade headers, autopilot expand/collapse, collapse-before-swap transitions, and velocity-tracked swipe-to-dismiss with spring return.
+3. **Ref-counted busy & slot stacks.** Concurrent `island.busy(label)` calls and `useIslandSlot(key, value)` registrations follow last-in-first-out ownership, restoring earlier labels or slot values automatically on completion/unmount.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/busy-and-expand.gif" alt="Stacked busy labels and expanded panel animation" width="680" />
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/anatomy.png" alt="@upstand/island architecture diagram: Island slots, Dock primitives, analytic C1 gooey SVG and Liquid Glass layers, 6 positions, and pluggable motion adapters" width="900" />
 </p>
 
-### In-place toast morphing & takeover
+## Visual Showcase
 
-Toasts open directly over the island's `inset`, update in place (such as `loading` → `success` with expanded description), or morph seamlessly under the `replace` strategy before blurring back into the resting capsule.
+### Ref-counted busy sweep & 120Hz expandable drawer
+
+`island.busy()` crossfades stacked task labels and sweeps `<IslandProgress />`; `<Island expanded={...} open autoMorph />` resizes both axes at 120Hz with configurable spring physics and non-shrinking `[data-island-leading]` / `[data-island-trailing]` slots.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/toast-morph.gif" alt="Toast loading, update, replace, error, and dismiss morph animation" width="680" />
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/busy-and-expand.gif" alt="Stacked busy activity labels and 120Hz bouncy autoMorph drawer" width="680" />
 </p>
 
-### All states & themes overview
+### Analytic C1 gooey morph & collapse-before-swap
+
+`island.toast.promise()` and sequential notifications morph smoothly between compact header pills and expanded action drawers using C1-continuous shoulders and blur-crossfade titles.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/states-overview.png" alt="@upstand/island states overview: island states, toast variants, custom card, bottom position, and light theme" width="880" />
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/toast-morph.gif" alt="Analytic C1 gooey toast morph, promise update, and collapse-before-swap animation" width="680" />
 </p>
 
-## Imperative API
+### Live Liquid Glass, upward bottom morph & full RTL
 
-`island` works anywhere: event handlers, query callbacks, plain modules. It is bound to the shared store, the same one `<IslandProvider>` uses when you don't give it a `store`. For code that must not import React, use `islandCore` from `@upstand/island/core`.
+Switch live between `surface="solid"` and `surface="liquid-glass"`, `theme="dark" | "light" | "system"`, `bottom-*` upward expansion, and full `dir="rtl"` mirroring.
 
-```ts
-island.toast.success("Saved");                          // title only
-island.toast.error("Upload failed", { description: "File is too large" });
-island.toast.warning({ title: "Heads up", description: "Low balance", duration: 10_000 });
-island.toast.info("Synced");
-const id = island.toast.loading("Uploading…");          // sticky until updated or dismissed
-island.toast.update(id, { type: "success", title: "Uploaded" });
-island.toast.action("Something went wrong", { action: { label: "Retry", onClick: retry } });
-island.toast.custom(<MyCard />, { duration: null });
-island.toast.dismiss(id);                               // one toast
-island.toast.dismiss();                                 // all toasts
+<p align="center">
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/liquid-glass-and-rtl.gif" alt="Dark and light Live Liquid Glass, bottom-center upward gooey morph, and Persian RTL support" width="760" />
+</p>
 
-await island.toast.promise(save(), {
-  loading: "Saving",
-  success: (result) => ({ title: "Saved", description: result.name }),
-  error: (err) => ({ title: "Couldn't save", description: String(err) }),
+### Dock mode, 6-position anchoring & pluggable physics
+
+Combine `mode="dock"`, the composable `<IslandDock>` bar primitives, live position switching across all 6 viewport spots, and side-by-side 120Hz motion adapters (`bouncy`, `smooth`, `elastic`).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/dock-and-physics.gif" alt="Dock mode across positions alongside bouncy, smooth, and elastic 120Hz motion presets" width="760" />
+</p>
+
+### Complete states & themes matrix
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/UpstandPlatform/island/main/assets/states-overview.png" alt="Overview of @upstand/island v0.2.0 states, solid and liquid glass surfaces, Dock mode, custom cards, bottom-center upward expansion, and RTL" width="900" />
+</p>
+
+## Pluggable 120Hz Motion & Physics
+
+Import presets or factories from `@upstand/island` or the tree-shakeable subpath `@upstand/island/motion`:
+
+| Preset (`ISLAND_MOTIONS`) | Feel | Underlying driver |
+| --- | --- | --- |
+| `"bouncy"` *(default)* | Crisp iOS / Sileo spring overshoot (`bounce: 0.25`, `600ms`) | Analytical spring |
+| `"smooth"` | Critically damped zero-overshoot glide (`480ms`) | Analytical spring |
+| `"snappy"` | Fast interactive response (`360ms`, `bounce: 0.18`) | Analytical spring |
+| `"elastic"` | Expressive tactile bounce (`680ms`, `bounce: 0.42`) | Analytical spring |
+| `"gentle"` | Relaxed large-drawer settle (`720ms`, `bounce: 0.08`) | Analytical spring |
+| `"instant"` | Zero-motion snap (also used when `prefers-reduced-motion` matches) | Immediate |
+
+Create tuned presets or plug in your own adapter (`IslandMotionAdapter`) backed by `requestAnimationFrame`, Web Animations API, Framer Motion, or GSAP:
+
+```tsx
+import {
+  IslandProvider,
+  createSpringMotion,
+  createEasingMotion,
+  createCssMotion,
+  easings,
+  type IslandMotionAdapter,
+} from "@upstand/island/motion";
+
+// 1. Custom spring tuning per animation channel
+const customSpring = createSpringMotion({
+  name: "brand-spring",
+  default: { duration: 540, bounce: 0.3 },
+  channels: {
+    expand: { duration: 620, bounce: 0.24 },
+    collapse: { duration: 420, bounce: 0.1 },
+    dragReturn: { stiffness: 380, damping: 24 },
+  },
 });
 
-const done = island.busy("Loading older messages");     // ref-counted
-done();                                                 // idempotent
+// 2. Time-based easing adapter
+const silkyEase = createEasingMotion({ duration: 440, easing: easings.easeOutExpo });
+
+// 3. CSS transition token adapter (drives --island-duration / --island-ease)
+const cssMotion = createCssMotion({ duration: "360ms", easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+
+// 4. Fully custom pluggable adapter
+const myAdapter: IslandMotionAdapter = {
+  name: "linear-120hz",
+  animate({ from, to, onUpdate, onComplete }) {
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / 300);
+      onUpdate(from + (to - from) * t, 0);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else onComplete();
+    };
+    raf = requestAnimationFrame(tick);
+    return { stop: () => cancelAnimationFrame(raf) };
+  },
+};
+
+<IslandProvider motion={customSpring}>{/* ... */}</IslandProvider>
 ```
 
-Every toast function takes `(title, options?)` or `(options)` and returns the toast id. `toast.custom(content, options?)` renders `content` directly inside `[data-island-toast-custom]` without an empty header or icon circle unless `title` or `icon` is provided.
+## Live Liquid Glass & Solid Surfaces
 
-| Option | Type | |
-| --- | --- | --- |
-| `id` | `string` | Reusing an id that is up updates that toast in place. |
-| `title` | `string` | |
-| `description` | `ReactNode` | |
-| `duration` | `number \| null` | In ms. `null` keeps the toast until it is dismissed. Defaults to 6000, and `loading` is sticky. |
-| `action` | `{ label, onClick, dismiss? }` | A button. It dismisses the toast unless `dismiss: false`. |
-| `icon` | `ReactNode` | Replaces the type icon. |
-| `content` | `ReactNode` | Body for `custom` toasts. |
-| `important` | `boolean` | Announce assertively. This is the default for errors. |
-| `dismissible` | `boolean` | Allows swipe and close dismissal. Default `true`. |
-| `data` | `Record<string, unknown>` | Free-form data for custom engines. |
-| `onDismiss` | `(toast, reason) => void` | `reason` is one of `timeout`, `user`, `swipe`, `replaced`, `overflow`, `api`. |
-
-`promise` resolves or rejects with the original value. If another toast replaced the loading toast in the meantime, the result is still shown. If the user dismissed it, the result is dropped.
-
-## React
-
-### `<IslandProvider>`
-
-| Prop | Default | |
-| --- | --- | --- |
-| `store` | shared store | Use your own store from `createIslandStore()`, e.g. in tests. |
-| `strategy` | `"replace"` | `"replace"` makes a new toast morph the current one. `"queue"` makes toasts wait their turn. |
-| `maxQueue` | `3` | Maximum number of waiting toasts. The oldest waiting one is dropped first. |
-| `durations` | `{}` | Default duration per type, e.g. `{ error: 10_000 }`. |
-| `onHaptic` | | `(kind: "success" \| "error" \| "warning" \| "light" \| "selection") => void`. |
-
-Wiring haptics to Telegram Mini Apps:
+Choose `surface="solid"` (default) or `surface="liquid-glass"` on `<IslandProvider>`, `<Island>`, `<IslandToaster>`, or individual toasts, and fine-tune optical properties via `glass` (`IslandGlassOptions`):
 
 ```tsx
 <IslandProvider
-  onHaptic={(kind) => {
-    const haptics = window.Telegram?.WebApp?.HapticFeedback;
-    if (kind === "light") haptics?.impactOccurred("light");
-    else if (kind === "selection") haptics?.selectionChanged();
-    else haptics?.notificationOccurred(kind);
+  surface="liquid-glass"
+  theme="system" // "dark" | "light" | "system"
+  roundness={18}
+  glass={{
+    blur: 14,         // px backdrop blur (default ~11-12px)
+    saturation: 1.9,  // backdrop color saturation (default 1.8-1.85)
+    refraction: 1.15, // inner Fresnel bevel strength
+    dispersion: 0.75, // chromatic edge prism tint
+    specular: 1,      // glass specular rim highlight
+    lite: false,      // true disables the chromatic prism layer on lower-end GPUs
   }}
-/>
+>
 ```
 
-### `<Island>`
+The reusable `<IslandGlassBackdrop>` component is also exported if you build custom toast engines or floating chrome matching `@upstand/island`'s optical surface.
 
-A headless capsule with slots. It hides itself (`data-hidden`, `aria-hidden`, `inert`) while a toast owns the island.
+## 6-Position System & Dock Mode
 
-| Prop | |
-| --- | --- |
-| `leading` / `trailing` | Start and end slots, such as a back button, an avatar or an action. |
-| `title` | Crossfades to the newest busy label while the island is busy. |
-| `badge` | Chip after the title. |
-| `children` | Replaces the title and badge region, e.g. to wrap them in a link. Put `<IslandTitle>` inside. |
-| `progress` | `"auto"` (default), `true` or `false`. Controls the sweeping bar shown while busy. |
-| `expanded` + `open` | Content revealed below the bar. The island grows to fit it and keeps collapsed panels `inert`. |
-| `hideOnToast` | Default `true`. |
-| `busyFallbackLabel` | Screen-reader text while the island is busy without a label. |
+All 6 anchor positions are supported by `IslandProvider`, `Island`, `IslandViewport`, `IslandToaster`, `island.setPosition()`, and per-toast `position`:
 
-Parts: `<IslandTitle>`, `<IslandProgress>`, and `<IslandViewport position inset>`, a fixed, centred container for apps without a header.
+- `"top-left"`, `"top-center"`, `"top-right"` — pin cleanly below the top edge and expand **downward**.
+- `"bottom-left"`, `"bottom-center"`, `"bottom-right"` — pin cleanly above the bottom edge and expand **upward**.
+
+Switch `mode` between `"floating"` (pill capsule with edge inset) and `"dock"` (flush viewport-edge notch/bar with safe-area padding), and optionally compose navigation actions with `<IslandDock>`, `<IslandDockItem>`, and `<IslandDockDivider>`:
 
 ```tsx
-<Island leading={<BackButton />} trailing={<ProfileLink />}>
-  <a href="/settings">
-    <IslandTitle className="title">{title}</IslandTitle>
-    {unread > 0 && <span className="count">{unread}</span>}
-  </a>
-</Island>
+<IslandProvider position="bottom-center" mode="dock" surface="liquid-glass">
+  <IslandViewport>
+    <Island>
+      <IslandDock aria-label="Primary dock">
+        <IslandDockItem icon={<HomeIcon />} label="Home" active onClick={() => go("/")} />
+        <IslandDockItem icon={<SearchIcon />} label="Search" showLabel onClick={openSearch} />
+        <IslandDockDivider />
+        <IslandDockItem icon={<InboxIcon />} label="Inbox" badge={4} onClick={() => go("/inbox")} />
+        <IslandDockItem icon={<BellIcon />} label="Alerts" badge /> {/* unread dot */}
+      </IslandDock>
+    </Island>
+  </IslandViewport>
+  <IslandToaster />
+</IslandProvider>
 ```
+
+## Full RTL Support
+
+Set `dir="auto"` (default, observes `<html dir>` / ancestor `[dir]` attributes live via `MutationObserver`), `"ltr"`, or `"rtl"`. Horizontal slot padding, progress sweeps, header truncation, close/action controls, and pill corner flow automatically adapt to reading direction, while viewport edge anchors (`*-left` / `*-right`) preserve physical screen coordinates so overlays stay where you placed them.
+
+## Imperative API
+
+`island` works everywhere (event handlers, query callbacks, non-React modules) and drives the default shared store (or import `islandCore` from `@upstand/island/core` when React must not be imported):
+
+```ts
+island.toast.success("Saved");
+island.toast.error("Upload failed", { description: "File exceeds 25 MB." });
+island.toast.warning({ title: "Heads up", description: "Low storage.", duration: 10_000 });
+island.toast.info("Synced");
+
+const id = island.toast.loading("Uploading…"); // sticky until updated or dismissed
+island.toast.update(id, { type: "success", title: "Uploaded", autopilot: { expand: 120, collapse: 4000 } });
+
+island.toast.action("Webhook paused", { action: { label: "Retry", onClick: retry } });
+island.toast.custom(<MyCard />, { duration: null });
+island.toast.dismiss(id);
+island.toast.dismiss();
+
+await island.toast.promise(save(), {
+  loading: "Saving",
+  success: (res) => ({ title: "Saved", description: res.name }),
+  error: (err) => ({ title: "Couldn't save", description: String(err) }),
+});
+
+const done = island.busy("Syncing workspace…"); // ref-counted
+done();                                        // idempotent
+
+// Live layout mutators
+island.setPosition("bottom-right");
+island.setMode("dock");
+island.setSurface("liquid-glass");
+island.setDir("rtl");
+island.setTheme("light");
+```
+
+### Toast Options
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Reusing an active id updates that toast in place. |
+| `title` | `string` | Primary toast label. |
+| `description` | `ReactNode` | Expanded detail content. |
+| `duration` | `number \| null` | Auto-dismiss delay in ms (`null` = sticky). Defaults to `6000` (`loading` defaults sticky). |
+| `action` | `{ label, onClick, dismiss? }` | Interactive pill CTA (`dismiss: false` keeps the toast open). |
+| `icon` | `ReactNode` | Overrides the default semantic icon. |
+| `content` | `ReactNode` | Custom card content (standalone card when `title`/`icon` omitted). |
+| `position` | `IslandPosition` | Override toast anchor across any of the 6 positions. |
+| `surface` | `IslandSurface` | `"solid"` or `"liquid-glass"` override for this toast. |
+| `glass` | `IslandGlassOptions` | Custom optical glass tuning for this toast. |
+| `roundness` | `number` | Gooey shoulder & corner roundness in px (default `16`). |
+| `autopilot` | `boolean \| { expand?, collapse? }` | Timed auto-expand and auto-collapse delays in ms. |
+| `motion` | `IslandMotionInput` | Per-toast motion preset or adapter override. |
+| `fill` | `string` | Custom solid background fill color for this toast. |
+| `styles` | `IslandToastStyles` | Class overrides (`root`, `header`, `icon`, `title`, `body`, `description`, `action`, `close`). |
+| `important` | `boolean` | Assertive live announcement (default for `"error"`). |
+| `dismissible` | `boolean` | Enables close button & swipe-to-dismiss. Default `true`. |
+| `data` | `Record<string, unknown>` | Arbitrary payload passed through to custom engines. |
+| `onDismiss` | `(toast, reason) => void` | `reason`: `"timeout" \| "user" \| "swipe" \| "replaced" \| "overflow" \| "api"`. |
+
+## React Reference
+
+### `<IslandProvider>`
+
+| Prop | Default | Description |
+| --- | --- | --- |
+| `store` | shared store | Provide an isolated store from `createIslandStore()`. |
+| `strategy` | `"replace"` | `"replace"` morphs active toast; `"queue"` queues toasts sequentially. |
+| `maxQueue` | `3` | Maximum waiting toasts under `"queue"`. |
+| `durations` | `{}` | Default durations per `IslandToastType`. |
+| `onHaptic` | | `(kind: "success" \| "error" \| "warning" \| "light" \| "selection") => void`. |
+| `position` | `"top-center"` | Global anchor (`top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, `bottom-right`). |
+| `mode` | `"floating"` | `"floating"` capsule or `"dock"` bar. |
+| `surface` | `"solid"` | `"solid"` or `"liquid-glass"`. |
+| `glass` | | Default `IslandGlassOptions`. |
+| `motion` | `"bouncy"` | `IslandMotionPreset` or custom `IslandMotionAdapter`. |
+| `dir` | `"auto"` | `"ltr"`, `"rtl"`, or `"auto"`. |
+| `theme` | *(inherits)* | `"dark"`, `"light"`, or `"system"`. |
+| `roundness` | `16` | Default corner/shoulder roundness in px. |
+| `autopilot` | `true` | Global toast expand/collapse timing policy. |
+| `icons` | | Custom `IslandToastIcons` (`success`, `error`, `warning`, `info`, `loading`, `action`). |
+| `styles` | | Global `IslandToastStyles` class overrides. |
+
+### `<Island>` & `<IslandViewport>`
+
+`<Island>` renders `[data-island-anchor]` containing `[data-island]`, automatically wrapping present `leading`, `trailing`, and `badge` slots in non-shrinking `[data-island-leading]`, `[data-island-trailing]`, and `[data-island-badge]` wrappers. `<IslandViewport>` is a zero-boilerplate fixed portal-free container aligned across all 6 positions.
+
+| `<Island>` Prop | Description |
+| --- | --- |
+| `leading` / `trailing` | Start and end slots (back button, avatar, status button). Never flex-shrink when the title is long. |
+| `title` | Crossfades to the newest `island.busy(label)` text while busy. |
+| `badge` | Non-shrinking chip placed after `title` inside `[data-island-body]`. |
+| `children` | Replaces `[data-island-body]` when customizing the middle region (use `<IslandTitle>` inside). |
+| `progress` | `"auto"` *(default)*, `true`, or `false` for the sweeping busy bar. |
+| `expanded` + `open` | Content expanded downward (`top-*`) or upward (`bottom-*`), viewport-clamped and `inert` when closed. |
+| `hideOnToast` | Default `true`. Fades and marks `<Island>` `inert` while a toast takes over. |
+| `busyFallbackLabel` | Screen-reader status text used when busy without a label. |
+| `position`, `mode`, `surface`, `glass`, `motion`, `dir`, `theme`, `roundness` | Optional per-component overrides over provider/store layout state. |
+| `autoMorph` | Default `true`. Enables 120Hz `ResizeObserver` width/height auto-morphing. |
 
 ### `<IslandToaster>`
 
-Render it once.
+Render `<IslandToaster />` once inside `<IslandProvider>`.
 
-| Prop | Default | |
+| Prop | Default | Description |
 | --- | --- | --- |
-| `engine` | built-in | Renderer. See [Engines](#engines). |
-| `position` | `"top-center"` | Or `"bottom-center"`. |
-| `inset` | `calc(env(safe-area-inset-top \| bottom, 0px) + 0.5rem)` | Distance from the matching viewport edge (`top` or `bottom`) to the island's edge. Match it to your island so the toast opens on top of it. |
-| `swipeToDismiss` | `true` | Swipe toward the edge to dismiss. |
-| `closeLabel` | | Accessible label for a close button. No button is shown without it. |
-
-In a fullscreen Telegram Mini App, centre the island in Telegram's content safe area (the row holding its buttons) and pass the same math:
-
-```tsx
-<IslandToaster inset="calc(var(--tg-safe-area-inset-top, 0px) + (var(--tg-content-safe-area-inset-top, 0px) - var(--island-height)) / 2)" />
-```
-
-Hovering or focusing a toast pauses its timer. Pressing Escape dismisses a focused toast.
+| `engine` | `DefaultIslandToastEngine` | Built-in 120Hz C1 gooey renderer or custom `IslandToastEngine` (`sileoEngine`). |
+| `position`, `mode`, `surface`, `glass`, `motion`, `dir`, `theme`, `roundness` | *(inherits)* | Optional overrides for notifications. |
+| `inset` | `0px` (dock) / `calc(safe-area + 0.5rem)` | Distance from vertical viewport edge (`top` / `bottom`). |
+| `insetX` | `calc(safe-area + 0.75rem)` | Distance from horizontal edge for `*-left` and `*-right`. |
+| `autopilot` | `true` | Auto-expand/collapse timing. |
+| `swipeToDismiss` | `true` | Velocity-tracked edge swipe dismissal with spring snap-back. |
+| `closeLabel` | | Renders a dismiss button with this `aria-label` when provided. |
+| `icons` / `styles` | | Custom icon & class-name overrides merged cleanly with per-toast options. |
 
 ### Hooks
 
-| Hook | |
+| Hook | Returns / Purpose |
 | --- | --- |
-| `useIsland(selector?)` | Subscribes to `IslandState` (`busy`, `busyCount`, `busyLabel`, `toast`, `queue`, `slots`). Selectors must return stable values. |
-| `useIslandApi()` | The imperative API bound to the store in context. |
-| `useIslandBusy(active, label?)` | Keeps the island busy while `active` is true, e.g. `useIslandBusy(isFetchingNextPage, "Loading more")`. |
-| `useIslandActivity()` | `{ busy, label }` |
+| `useIsland(selector?)` | Subscribes to `IslandState` (`busy`, `busyCount`, `busyLabel`, `toast`, `queue`, `slots`, layout fields). |
+| `useIslandApi()` | Imperative `island` API bound to the store in context. |
+| `useIslandBusy(active, label?)` | Keeps the island busy while `active` is `true`. |
+| `useIslandActivity()` | `{ busy, label }`. |
 | `useIslandToastActive()` | `true` while a toast owns the island. |
-| `useIslandSlot(key, value)` | Publishes a typed value while the component is mounted. The newest publisher wins, and the previous value comes back when it unmounts. `null` publishes nothing. |
-| `useIslandSlotValue<T>(key)` | Reads a slot. |
+| `useIslandSlot(key, value)` | Scoped LIFO slot registration while mounted. |
+| `useIslandSlotValue<T>(key)` | Subscribes to a registered slot value. |
+| `useIslandConfig()` | Active provider layout & theme configuration. |
+| `useIslandPosition()` | `[position, setPosition]` stateful tuple backed by the store. |
+| `useIslandMode()` | `[mode, setMode]` stateful tuple (`"floating" \| "dock"`). |
+| `useIslandSurface()` | `[surface, setSurface]` stateful tuple (`"solid" \| "liquid-glass"`). |
+| `useIslandDirection()` | Resolved `"ltr" \| "rtl"` after `auto` detection. |
+| `useIslandMotion(override?)` | Resolved `IslandMotionAdapter` respecting `prefers-reduced-motion`. |
 
-```tsx
-// A page publishes, the header reads.
-function ChatPage({ chat }) {
-  useIslandSlot("title", chat.name);
-  useIslandSlot<ChatAvatar>("avatar", chat.avatar);
-}
-function Header() {
-  const title = useIslandSlotValue<string>("title") ?? "Home";
-  const avatar = useIslandSlotValue<ChatAvatar>("avatar");
-  return <Island leading={avatar && <Avatar {...avatar} />} title={title} />;
-}
-```
+## Engines (`@upstand/island/sileo`)
 
-## Engines
-
-The store owns every toast's lifecycle: ids, timers, the queue, pausing and haptics. An engine only draws the current toast and reports dismissals back to the store.
+Use the built-in `DefaultIslandToastEngine` out of the box, or plug in `sileoEngine` / `createSileoEngine` (`sileo` optional peer dependency) across all 6 viewport positions, RTL, dark/light/system themes, roundness, and autopilot:
 
 ```tsx
 import { createSileoEngine, sileoEngine } from "@upstand/island/sileo";
 
 <IslandToaster engine={sileoEngine} />
-<IslandToaster engine={createSileoEngine({ theme: "dark", fill: "#000000", styles: { description: "opacity-70" } })} />
+<IslandToaster
+  engine={createSileoEngine({
+    theme: "dark",
+    roundness: 16,
+    autopilot: true,
+    styles: { description: "opacity-75" },
+  })}
+/>
 ```
 
-The sileo engine routes every toast through a single sileo slot, so a new toast morphs the current one instead of stacking. It also sets `--sileo-height` to `--island-height` and offsets sileo's viewport padding, so the toast lands exactly on the island.
+To build a custom engine, accept `IslandToastEngineProps`, render `toast`, report dismissals via `store.dismiss(id, "user" | "swipe")`, call `store.pause()` / `store.resume()`, and optionally set `Engine.announces` (`"polite"` | `"all"`).
 
-To write your own engine, take `IslandToastEngineProps` (`toast`, `store`, `position`, `inset`, `swipeToDismiss`, `closeLabel`). Call `store.dismiss(id, "user" | "swipe")` and `store.pause()` / `store.resume()` as the user interacts. Set `Engine.announces` to `"polite"` or `"all"` if your renderer already makes its own announcements.
+## Core (`@upstand/island/core`)
 
-## Core (no React)
+Use the framework-free state machine anywhere outside React:
 
 ```ts
 import { createIslandStore, createIslandApi } from "@upstand/island/core";
 
-const store = createIslandStore({ strategy: "queue", maxQueue: 5 });
+const store = createIslandStore({
+  strategy: "queue",
+  maxQueue: 5,
+  position: "top-right",
+  surface: "liquid-glass",
+  dir: "auto",
+});
+
 const api = createIslandApi(() => store);
-store.subscribe(() => console.log(store.getSnapshot()));
 store.on("dismiss", (toast, reason) => analytics.track("toast", { reason }));
+store.on("layout", (layout) => console.log("layout updated:", layout));
 ```
 
-Events: `show`, `update`, `dismiss`, `busy` and `change`. `getServerSnapshot()` always returns the same frozen empty state.
+Events: `show`, `update`, `dismiss`, `busy`, `layout`, and `change`. `getServerSnapshot()` returns a frozen empty snapshot matching initial store layout overrides for SSR hydration safety.
 
-## Styling
+## Styling & Customization
 
-`island.css` uses `:where()` throughout, so its rules have zero specificity. Theme it with custom properties:
+`island.css` wraps every rule in `:where(...)` (zero specificity) so utility classes and custom CSS always take precedence. Switch palettes by passing `theme` or setting `data-island-theme="light" | "dark" | "system"` on any ancestor.
 
-| Variable | Default |
-| --- | --- |
-| `--island-bg` / `--island-fg` | `#000` / `#fff` |
-| `--island-height` | `40px` |
-| `--island-max-width` | `min(20rem, calc(100vw - 2rem))` |
-| `--island-radius` / `--island-radius-expanded` | `9999px` / `1.25rem` |
-| `--island-ease` / `--island-duration` | `cubic-bezier(0.22, 1, 0.36, 1)` / `420ms` |
-| `--island-inset` | `calc(env(safe-area-inset-top \| bottom, 0px) + 0.5rem)` |
-| `--island-success`, `-error`, `-warning`, `-info`, `-loading`, `-action` | state colours |
+| CSS Custom Property | Default | Purpose |
+| --- | --- | --- |
+| `--island-bg` / `--island-fg` | `#000` / `#fff` | Solid surface background & text (`#fff` / `#0a0a0a` in light theme) |
+| `--island-height` | `40px` | Resting bar height & pill endcap diameter |
+| `--island-max-width` / `--island-max-height` | `min(22rem, calc(100vw - 1.5rem))` / viewport clamp | Island capsule bounds & expanded scroll clamp |
+| `--island-radius` / `--island-radius-expanded` | `calc(var(--island-height) / 2)` / `1.25rem` | Resting pill & expanded panel corner radius |
+| `--island-roundness` | `16px` | Analytic gooey corner & neck curve roundness |
+| `--island-inset` / `--island-inset-x` | safe-area + `0.5rem` / safe-area + `0.75rem` | Vertical and horizontal viewport spacing |
+| `--island-duration` / `--island-ease` | `420ms` / `cubic-bezier(0.22, 1, 0.36, 1)` | CSS fallback motion timing tokens |
+| `--island-glass-blur` / `--island-glass-saturation` | `11px` / `1.85` | Live Liquid Glass backdrop blur & color boost |
+| `--island-glass-tint` / `--island-glass-rim` | adaptive dark/light glass tokens | Optical glass tint & Fresnel highlight rim |
+| `--island-success`, `-error`, `-warning`, `-info`, `-loading`, `-action` | semantic oklch tokens | Accent colors for icons, badges, and buttons |
 
-Set `data-island-theme="light"` or `data-island-theme="system"` on any ancestor to switch palettes. Under `prefers-reduced-motion`, the morph, the label slide and the sweep are replaced by a steady, dimmed bar. The progress sweep reverses in `dir="rtl"`.
+Targetable data attributes:
 
-State attributes you can target: `[data-island][data-hidden]`, `[data-busy]`, `[data-open]`, `[data-island-toast][data-type][data-state="open"|"closed"]`, `[data-island-toast-custom]`.
+- `[data-island-anchor][data-position][data-mode][data-open][data-hidden][data-dir]`
+- `[data-island][data-position][data-mode][data-surface][data-motion][data-auto-morph][data-dir][data-hidden][data-busy][data-open]`
+- `[data-island-leading]`, `[data-island-body]`, `[data-island-title]`, `[data-island-badge]`, `[data-island-trailing]`, `[data-island-expanded]`
+- `[data-island-dock]`, `[data-island-dock-item][data-active][data-labeled]`, `[data-island-dock-badge][data-dot]`, `[data-island-dock-divider]`
+- `[data-island-viewport][data-position][data-mode][data-dir]`, `[data-island-toaster][data-position][data-mode][data-surface][data-motion][data-dir]`
+- `[data-island-toast][data-type][data-surface][data-state="open"|"closed"][data-expanded][data-dragging]`, `[data-island-toast-custom]`, `[data-island-glass-backdrop]`
 
 ## License
 

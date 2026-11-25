@@ -1,10 +1,16 @@
 import type {
+  IslandDirection,
   IslandDismissReason,
   IslandEvents,
   IslandHaptic,
+  IslandLayoutState,
+  IslandMode,
+  IslandPosition,
   IslandPromiseMessages,
   IslandState,
   IslandStoreOptions,
+  IslandSurface,
+  IslandTheme,
   IslandTimers,
   IslandToast,
   IslandToastMessage,
@@ -22,6 +28,14 @@ export const DEFAULT_DURATIONS: Readonly<Record<IslandToastType, number | null>>
   loading: null,
 };
 
+export const DEFAULT_LAYOUT: Readonly<IslandLayoutState> = Object.freeze({
+  position: "top-center",
+  mode: "floating",
+  surface: "solid",
+  dir: "auto",
+  theme: "dark",
+});
+
 /** Snapshot used on the server and before anything happens. Never mutated. */
 export const EMPTY_ISLAND_STATE: IslandState = Object.freeze({
   busy: false,
@@ -30,6 +44,7 @@ export const EMPTY_ISLAND_STATE: IslandState = Object.freeze({
   toast: null,
   queue: Object.freeze([]) as readonly IslandToast[],
   slots: Object.freeze({}),
+  ...DEFAULT_LAYOUT,
 });
 
 const HAPTIC_FOR: Partial<Record<IslandToastType, IslandHaptic>> = {
@@ -38,15 +53,26 @@ const HAPTIC_FOR: Partial<Record<IslandToastType, IslandHaptic>> = {
   warning: "warning",
 };
 
+const LAYOUT_KEYS = ["position", "mode", "surface", "dir", "theme"] as const;
+
 export type IslandToastInput = IslandToastOptions & { type?: IslandToastType };
 
 export interface IslandStore {
   getSnapshot: () => IslandState;
-  /** Always the empty state: busy and toasts are client-only. */
+  /** Always the empty activity/toast state: busy and toasts are client-only. */
   getServerSnapshot: () => IslandState;
   subscribe: (listener: () => void) => () => void;
   on: <E extends keyof IslandEvents>(event: E, handler: IslandEvents[E]) => () => void;
   configure: (options: IslandStoreOptions) => void;
+
+  /** Update layout configuration imperatively from anywhere. */
+  setPosition: (position: IslandPosition) => void;
+  setMode: (mode: IslandMode) => void;
+  setSurface: (surface: IslandSurface) => void;
+  setDir: (dir: IslandDirection) => void;
+  setTheme: (theme: IslandTheme) => void;
+  /** Whether a layout key has been explicitly configured on this store. */
+  hasLayoutOverride: (key: keyof IslandLayoutState) => boolean;
 
   /** Mark the island busy; returns an idempotent `done` function. */
   busy: (label?: string | null) => () => void;
@@ -77,10 +103,38 @@ function toOptions(message: IslandToastMessage): IslandToastOptions {
   return typeof message === "string" ? { title: message } : message;
 }
 
+function assignLayoutField<K extends keyof IslandLayoutState>(
+  target: IslandLayoutState,
+  key: K,
+  value: IslandLayoutState[K],
+) {
+  target[key] = value;
+}
+
 /** Create an isolated island store. Safe to call at import time: it touches no globals. */
 export function createIslandStore(initial: IslandStoreOptions = {}): IslandStore {
   let options: IslandStoreOptions = { ...initial };
-  let state: IslandState = EMPTY_ISLAND_STATE;
+  const explicitLayout = new Set<keyof IslandLayoutState>();
+  const initialLayout: IslandLayoutState = { ...DEFAULT_LAYOUT };
+  let matchesDefaultLayout = true;
+
+  for (const key of LAYOUT_KEYS) {
+    const val = initial[key];
+    if (val !== undefined) {
+      explicitLayout.add(key);
+      assignLayoutField(initialLayout, key, val);
+      if (!Object.is(val, DEFAULT_LAYOUT[key])) {
+        matchesDefaultLayout = false;
+      }
+    }
+  }
+
+  let layout: IslandLayoutState = initialLayout;
+  const serverSnapshot: IslandState = matchesDefaultLayout
+    ? EMPTY_ISLAND_STATE
+    : Object.freeze({ ...EMPTY_ISLAND_STATE, ...initialLayout });
+  let state: IslandState = serverSnapshot;
+
   const listeners = new Set<() => void>();
   const handlers: { [E in keyof IslandEvents]?: Set<IslandEvents[E]> } = {};
 
@@ -129,9 +183,29 @@ export function createIslandStore(initial: IslandStoreOptions = {}): IslandStore
       toast: visible,
       queue: queue.slice(),
       slots: parts.slots ? computeSlots() : state.slots,
+      ...layout,
     };
     for (const listener of listeners) listener();
     fire("change", state);
+  }
+
+  function setLayout(patch: Partial<IslandLayoutState>) {
+    let changed = false;
+    const next: IslandLayoutState = { ...layout };
+    for (const key of LAYOUT_KEYS) {
+      const val = patch[key];
+      if (val !== undefined) {
+        explicitLayout.add(key);
+        if (!Object.is(next[key], val)) {
+          assignLayoutField(next, key, val);
+          changed = true;
+        }
+      }
+    }
+    if (!changed) return;
+    layout = next;
+    emit();
+    fire("layout", { ...layout });
   }
 
   function haptic(kind: IslandHaptic) {
@@ -236,7 +310,7 @@ export function createIslandStore(initial: IslandStoreOptions = {}): IslandStore
       ...rest,
       id,
       type,
-      // A type change (loading → success) picks up that type's default duration.
+      // A type change (loading -> success) picks up that type's default duration.
       duration: duration !== undefined ? duration : typeChanged ? durationFor(type, undefined) : current.duration,
       version: current.version + 1,
     };
@@ -363,7 +437,7 @@ export function createIslandStore(initial: IslandStoreOptions = {}): IslandStore
 
   return {
     getSnapshot: () => state,
-    getServerSnapshot: () => EMPTY_ISLAND_STATE,
+    getServerSnapshot: () => serverSnapshot,
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -380,7 +454,14 @@ export function createIslandStore(initial: IslandStoreOptions = {}): IslandStore
     },
     configure(next) {
       options = { ...options, ...next };
+      setLayout(next);
     },
+    setPosition: (position) => setLayout({ position }),
+    setMode: (mode) => setLayout({ mode }),
+    setSurface: (surface) => setLayout({ surface }),
+    setDir: (dir) => setLayout({ dir }),
+    setTheme: (theme) => setLayout({ theme }),
+    hasLayoutOverride: (key) => explicitLayout.has(key),
     busy,
     show,
     update,

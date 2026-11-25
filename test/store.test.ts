@@ -305,6 +305,76 @@ describe("slots", () => {
   });
 });
 
+describe("layout & per-toast customization", () => {
+  test("updates position, mode, surface, dir, and theme via store & imperative API", () => {
+    const { store, api } = setup();
+    const layoutEvents: unknown[] = [];
+    store.on("layout", (l) => layoutEvents.push(l));
+
+    expect(store.getSnapshot()).toMatchObject({
+      position: "top-center",
+      mode: "floating",
+      surface: "solid",
+      dir: "auto",
+      theme: "dark",
+    });
+
+    api.setPosition("bottom-right");
+    api.setMode("dock");
+    api.setSurface("liquid-glass");
+    api.setDir("rtl");
+    api.setTheme("light");
+
+    expect(store.getSnapshot()).toMatchObject({
+      position: "bottom-right",
+      mode: "dock",
+      surface: "liquid-glass",
+      dir: "rtl",
+      theme: "light",
+    });
+    expect(layoutEvents).toHaveLength(5);
+
+    // Setting the exact same value is a no-op.
+    api.setPosition("bottom-right");
+    expect(layoutEvents).toHaveLength(5);
+  });
+
+  test("per-toast position, surface, roundness, autopilot, and fill are preserved", () => {
+    const { api, store } = setup();
+    api.toast.info("Glass", {
+      position: "top-left",
+      surface: "liquid-glass",
+      roundness: 20,
+      autopilot: { expand: 100, collapse: 2500 },
+      fill: "#111118",
+      glass: { blur: 14, refraction: 1.3 },
+    });
+    expect(store.getSnapshot().toast).toMatchObject({
+      position: "top-left",
+      surface: "liquid-glass",
+      roundness: 20,
+      autopilot: { expand: 100, collapse: 2500 },
+      fill: "#111118",
+      glass: { blur: 14, refraction: 1.3 },
+    });
+  });
+
+  test("custom store initial layout is reflected in frozen server snapshot", () => {
+    const store = createIslandStore({ position: "bottom-left", mode: "dock", surface: "liquid-glass", dir: "rtl", theme: "light" });
+    const srv = store.getServerSnapshot();
+    expect(Object.isFrozen(srv)).toBe(true);
+    expect(srv).toMatchObject({
+      position: "bottom-left",
+      mode: "dock",
+      surface: "liquid-glass",
+      dir: "rtl",
+      theme: "light",
+    });
+    expect(store.hasLayoutOverride("position")).toBe(true);
+    expect(store.hasLayoutOverride("mode")).toBe(true);
+  });
+});
+
 describe("SSR", () => {
   test("server snapshot stays empty and stable whatever the client state", () => {
     const { store, api } = setup();
@@ -312,8 +382,21 @@ describe("SSR", () => {
     store.busy("x");
     api.toast.loading("y");
     store.setSlot("title", "z");
+    api.setPosition("bottom-center");
     expect(store.getServerSnapshot()).toBe(before);
-    expect(before).toEqual({ busy: false, busyCount: 0, busyLabel: null, toast: null, queue: [], slots: {} });
+    expect(before).toEqual({
+      busy: false,
+      busyCount: 0,
+      busyLabel: null,
+      toast: null,
+      queue: [],
+      slots: {},
+      position: "top-center",
+      mode: "floating",
+      surface: "solid",
+      dir: "auto",
+      theme: "dark",
+    });
     expect(Object.isFrozen(before)).toBe(true);
   });
 
