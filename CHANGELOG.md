@@ -2,6 +2,15 @@
 
 All notable changes to this package are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Size the default toast from the same CSS tokens as the island: the pill height follows `--island-height` and the toast width follows `--island-toast-max-width`, instead of hard-coded 40px / 352px. Apps that resize the island now get a toast that lines up with it.
+- Re-apply the dark palette for `data-island-theme="dark"` (and `"system"` in a dark OS theme), so a dark island or toaster renders dark under a light-themed ancestor.
+- Use the island title size (`0.875rem`) for toast titles so the title does not jump when the island hands over to a toast.
+- Stop the loading-toast spinner under `prefers-reduced-motion: reduce`.
+
 ## [0.2.2] - 2026-11-26
 
 ### Fixed

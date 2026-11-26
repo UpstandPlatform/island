@@ -192,7 +192,8 @@ export function IslandToaster({
   );
 }
 
-const PILL_HEIGHT = 40;
+/** Fallbacks for `--island-height` / `--island-toast-max-width` before the probe is measured (SSR, tests). */
+const DEFAULT_PILL_HEIGHT = 40;
 const DEFAULT_TOAST_WIDTH = 352;
 const DEFAULT_PILL_WIDTH = 176;
 const MIN_EXPANDED_BODY = 52;
@@ -311,10 +312,15 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     toast ? { key: headerKeyOf(toast), type: toast.type, title: toast.title, icon: toast.icon as ReactNode } : null,
   );
 
+  // Geometry follows the same CSS tokens as <Island> (`--island-height`,
+  // `--island-toast-max-width`) so the toast pill and the island bar match.
+  const geometryProbeRef = useRef<HTMLSpanElement>(null);
+  const pillHRef = useRef(DEFAULT_PILL_HEIGHT);
+  const maxToastWRef = useRef(DEFAULT_TOAST_WIDTH);
   const toastWidthRef = useRef(DEFAULT_TOAST_WIDTH);
   const measuredPillWRef = useRef(DEFAULT_PILL_WIDTH);
   const measuredBodyHRef = useRef(0);
-  const measuredCustomHRef = useRef(PILL_HEIGHT);
+  const measuredCustomHRef = useRef(DEFAULT_PILL_HEIGHT);
   const hasMeasuredPillRef = useRef(false);
   const dragFrameRef = useRef<number | null>(null);
   const ignoreNextClickRef = useRef(false);
@@ -376,7 +382,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     const entry = ctrl.get("entry", 1);
     const entryClamped = clamp(entry, 0, 1);
     const bodyH = Math.max(0, ctrl.get("bodyHeight", 0));
-    const pillW = clamp(ctrl.get("pillWidth", isCustom ? w : measuredPillWRef.current), PILL_HEIGHT, w);
+    const pillW = clamp(ctrl.get("pillWidth", isCustom ? w : measuredPillWRef.current), pillHRef.current, w);
     const pillX = clamp(
       ctrl.get("pillX", computePillX(w, pillW, horizontal)),
       0,
@@ -385,7 +391,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     const shift = ctrl.get("headerShift", 0);
     const dragY = ctrl.get("dragY", 0);
 
-    const totalH = PILL_HEIGHT + bodyH;
+    const totalH = pillHRef.current + bodyH;
     const pillTop = down ? 0 : bodyH;
     const slideDist = down ? -6 : 6;
     const entrySlideY = slideDist * (1 - entry);
@@ -395,7 +401,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
 
     const path = buildGooeyPath({
       width: w,
-      pillHeight: PILL_HEIGHT,
+      pillHeight: pillHRef.current,
       pillX,
       pillWidth: pillW,
       bodyHeight: bodyH,
@@ -475,11 +481,11 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
       }
 
       const maxBody =
-        typeof window !== "undefined" ? Math.max(MIN_EXPANDED_BODY, window.innerHeight - PILL_HEIGHT - 56) : Infinity;
+        typeof window !== "undefined" ? Math.max(MIN_EXPANDED_BODY, window.innerHeight - pillHRef.current - 56) : Infinity;
       const clampedBody = Math.min(measuredBodyHRef.current, maxBody);
       const targetBody = resolved
         ? custom
-          ? Math.max(0, measuredCustomHRef.current - PILL_HEIGHT)
+          ? Math.max(0, measuredCustomHRef.current - pillHRef.current)
           : Math.max(MIN_EXPANDED_BODY, clampedBody)
         : 0;
       const channel = resolved ? "expand" : "collapse";
@@ -657,12 +663,17 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
           : parentW > 0
             ? Math.min(parentW, window.innerWidth)
             : window.innerWidth;
-      const nextW = Math.max(PILL_HEIGHT * 3, Math.min(DEFAULT_TOAST_WIDTH, hostW - 20));
-      if (Math.abs(nextW - toastWidthRef.current) >= 1) {
+      const probe = geometryProbeRef.current?.getBoundingClientRect();
+      const nextPillH = probe && probe.height > 0 ? probe.height : pillHRef.current;
+      if (probe && probe.width > 0) maxToastWRef.current = probe.width;
+      const pillHChanged = Math.abs(nextPillH - pillHRef.current) >= 0.5;
+      pillHRef.current = nextPillH;
+      const nextW = Math.max(nextPillH * 3, Math.min(maxToastWRef.current, hostW - 20));
+      if (pillHChanged || Math.abs(nextW - toastWidthRef.current) >= 1) {
         toastWidthRef.current = nextW;
         const targetPillW = isPureCustomToast(shownRef.current)
           ? nextW
-          : clamp(measuredPillWRef.current, PILL_HEIGHT, nextW);
+          : clamp(measuredPillWRef.current, pillHRef.current, nextW);
         const targetPillX = computePillX(nextW, targetPillW, edges.horizontal);
         motionCtrl.animateTo("pillWidth", targetPillW, "morph", { immediate: true });
         motionCtrl.animateTo("pillX", targetPillX, "morph", { immediate: true });
@@ -675,6 +686,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     if (ro && toasterRef.current) {
       ro.observe(toasterRef.current);
       if (toasterRef.current.parentElement) ro.observe(toasterRef.current.parentElement);
+      if (geometryProbeRef.current) ro.observe(geometryProbeRef.current);
     }
     return () => {
       window.removeEventListener("resize", syncWidth);
@@ -687,7 +699,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     if (!shownRef.current) return;
     const pillW = isPureCustomToast(shownRef.current)
       ? toastWidthRef.current
-      : clamp(measuredPillWRef.current, PILL_HEIGHT, toastWidthRef.current);
+      : clamp(measuredPillWRef.current, pillHRef.current, toastWidthRef.current);
     const targetX = computePillX(toastWidthRef.current, pillW, edges.horizontal);
     motionCtrl.animateTo("pillWidth", pillW, "morph", { immediate: !hasMeasuredPillRef.current });
     motionCtrl.animateTo("pillX", targetX, "morph", { immediate: !hasMeasuredPillRef.current });
@@ -703,7 +715,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
     if (headerEl) {
       const syncHeader = (w: number) => {
         if (w <= 0) return;
-        const measured = clamp(Math.ceil(w) + 10, PILL_HEIGHT, toastWidthRef.current);
+        const measured = clamp(Math.ceil(w) + 10, pillHRef.current, toastWidthRef.current);
         const first = !hasMeasuredPillRef.current;
         hasMeasuredPillRef.current = true;
         measuredPillWRef.current = measured;
@@ -728,7 +740,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
         measuredBodyHRef.current = h;
         if (expandedRef.current && !isPureCustomToast(shownRef.current)) {
           const maxBody =
-            typeof window !== "undefined" ? Math.max(MIN_EXPANDED_BODY, window.innerHeight - PILL_HEIGHT - 56) : Infinity;
+            typeof window !== "undefined" ? Math.max(MIN_EXPANDED_BODY, window.innerHeight - pillHRef.current - 56) : Infinity;
           motionCtrl.animateTo("bodyHeight", Math.max(MIN_EXPANDED_BODY, Math.min(h, maxBody)), "expand");
         }
       };
@@ -748,7 +760,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
         if (h <= 0) return;
         measuredCustomHRef.current = h;
         if (isPureCustomToast(shownRef.current) && !leavingRef.current) {
-          motionCtrl.animateTo("bodyHeight", Math.max(0, h - PILL_HEIGHT), "expand");
+          motionCtrl.animateTo("bodyHeight", Math.max(0, h - pillHRef.current), "expand");
         }
       };
       syncCustom(customEl.getBoundingClientRect().height);
@@ -785,9 +797,9 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
 
   const pureCustom = shown ? isPureCustomToast(shown) : false;
   const initialW = toastWidthRef.current;
-  const initialPillW = pureCustom ? initialW : clamp(measuredPillWRef.current, PILL_HEIGHT, initialW);
+  const initialPillW = pureCustom ? initialW : clamp(measuredPillWRef.current, pillHRef.current, initialW);
   const initialPillX = computePillX(initialW, initialPillW, edges.horizontal);
-  const initialBodyH = pureCustom ? Math.max(0, measuredCustomHRef.current - PILL_HEIGHT) : 0;
+  const initialBodyH = pureCustom ? Math.max(0, measuredCustomHRef.current - pillHRef.current) : 0;
 
   // Freeze initial JSX geometry per toast instance so React re-renders (expanded, prevHeader, theme)
   // never overwrite live imperative SVG / clipPath / header positioning written by `applyFrame`.
@@ -796,13 +808,13 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
   const mountGeom = useMemo(
     () => ({
       w: initialW,
-      h: PILL_HEIGHT + initialBodyH,
+      h: pillHRef.current + initialBodyH,
       pillX: initialPillX,
       pillW: initialPillW,
       path: shown
         ? buildGooeyPath({
             width: initialW,
-            pillHeight: PILL_HEIGHT,
+            pillHeight: pillHRef.current,
             pillX: initialPillX,
             pillWidth: initialPillW,
             bodyHeight: initialBodyH,
@@ -1009,6 +1021,7 @@ export const DefaultIslandToastEngine: IslandToastEngine = function DefaultIslan
         } as CSSProperties
       }
     >
+      <span ref={geometryProbeRef} data-island-toast-probe="" aria-hidden="true" />
       <div
         ref={toastElRef}
         key={shown.id}
