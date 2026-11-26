@@ -1,6 +1,6 @@
 {
   "name": "@upstand/island",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A dynamic-island header, dock, and gooey morphing toast system for React: 120Hz bouncy spring physics, pluggable motion adapters, live Liquid Glass & solid surfaces, full RTL, and 6-position anchoring.",
   "license": "MIT",
   "author": {

@@ -1,5 +1,5 @@
 /*
- * @upstand/island default styles (v0.2.1).
+ * @upstand/island default styles.
  * Most rules use :where() (zero specificity); button reset classes protect
  * interactive primitives from broad page-level button styles.
  * Theme with --island-* custom properties; set data-island-theme="light",
@@ -305,11 +305,13 @@
 }
 
 :where([data-island][data-mode="dock"][data-position^="top-"] [data-island-content]) {
-  padding-top: env(safe-area-inset-top, 0px);
+  --island-panel-inset: env(safe-area-inset-top, 0px);
+  padding-top: var(--island-panel-inset);
 }
 
 :where([data-island][data-mode="dock"][data-position^="bottom-"] [data-island-content]) {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --island-panel-inset: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--island-panel-inset);
 }
 
 :where([data-island-bar]) {
@@ -426,10 +428,10 @@
   min-width: 0;
   overflow: hidden;
   text-align: start;
+  max-height: max(0px, calc(min(var(--island-max-height), var(--island-available-height, 100dvh)) - var(--island-height) - var(--island-panel-inset, 0px)));
 }
 
 :where([data-island-expanded][data-open] [data-island-expanded-inner]) {
-  max-height: calc(min(var(--island-max-height), var(--island-available-height, 100dvh)) - var(--island-height));
   overflow-y: auto;
   overscroll-behavior: contain;
 }

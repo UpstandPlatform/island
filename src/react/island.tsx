@@ -179,37 +179,49 @@ export const Island = forwardRef<HTMLDivElement, IslandProps>(function Island(
     };
   }, [hasExpandedPanel, isOpen]);
 
-  // Measure live space from the anchored bar edge to the opposite viewport edge
-  // so expanded panels never overflow above the top bar or below the bottom bar.
+  // Keep the last limit during collapse so tall panel contents cannot grow
+  // past the available space while the grid track animates closed.
   useIsomorphicLayoutEffect(() => {
     const el = ref.current;
     const anchor = anchorRef.current;
-    if (!el || !anchor) return;
-    if (!isOpen || typeof window === "undefined") {
-      el.style.removeProperty("--island-available-height");
-      return;
-    }
+    if (!el || !anchor || !isOpen || typeof window === "undefined") return;
+    const viewport = window.visualViewport;
+    let frame: number | null = null;
     const updateAvailable = () => {
+      frame = null;
       const rect = anchor.getBoundingClientRect();
+      const top = viewport?.offsetTop ?? 0;
+      const bottom = top + (viewport?.height ?? window.innerHeight);
       const available = edges.expandsDownward
-        ? Math.max(120, Math.floor(window.innerHeight - rect.top - 16))
-        : Math.max(120, Math.floor(rect.bottom - 16));
-      el.style.setProperty("--island-available-height", `${available}px`);
+        ? bottom - Math.max(top, rect.top) - 16
+        : Math.min(bottom, rect.bottom) - top - 16;
+      const barHeight = rect.height;
+      el.style.setProperty("--island-available-height", `${Math.ceil(Math.max(barHeight, available))}px`);
     };
+    const scheduleUpdate = () => { if (frame === null) frame = window.requestAnimationFrame(updateAvailable); };
     updateAvailable();
-    window.addEventListener("resize", updateAvailable);
-    return () => window.removeEventListener("resize", updateAvailable);
-  }, [isOpen, edges.expandsDownward]);
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("scroll", scheduleUpdate, { capture: true, passive: true });
+    viewport?.addEventListener("resize", scheduleUpdate);
+    viewport?.addEventListener("scroll", scheduleUpdate);
+    return () => {
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("scroll", scheduleUpdate, true);
+      viewport?.removeEventListener("resize", scheduleUpdate);
+      viewport?.removeEventListener("scroll", scheduleUpdate);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [isOpen, position, mode, edges.expandsDownward]);
 
   // `inert` keeps focus out of the island while the toast stands in for it,
   // and out of collapsed expanded content so keyboard Tab cannot enter it.
-  useEffect(() => {
-    const el = ref.current as (HTMLDivElement & { inert?: boolean }) | null;
+  useIsomorphicLayoutEffect(() => {
+    const el = ref.current;
     if (el) el.inert = hidden;
   }, [hidden]);
 
-  useEffect(() => {
-    const el = expandedRef.current as (HTMLDivElement & { inert?: boolean }) | null;
+  useIsomorphicLayoutEffect(() => {
+    const el = expandedRef.current;
     if (el) el.inert = !isOpen;
   }, [isOpen]);
 

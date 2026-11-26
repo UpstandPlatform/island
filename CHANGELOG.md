@@ -2,6 +2,13 @@
 
 All notable changes to this package are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-11-26
+
+### Fixed
+
+- Keep expanded panels within the visible viewport as the keyboard opens, the page scrolls, or the viewport changes size.
+- Keep the panel height limit in place during collapse and account for safe-area padding in docked layouts.
+
 ## [0.2.1] - 2026-11-25
 
 ### Fixed
