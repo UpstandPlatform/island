@@ -4,6 +4,8 @@ All notable changes to this package are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-26
+
 ### Fixed
 
 - Size the default toast from the same CSS tokens as the island: the pill height follows `--island-height` and the toast width follows `--island-toast-max-width`, instead of hard-coded 40px / 352px. Apps that resize the island now get a toast that lines up with it.
