@@ -156,6 +156,18 @@ describe("React SSR rendering", () => {
     const bodyId = engineHtml.match(/aria-controls="([^"]+)"/)?.[1];
     expect(bodyId).toBeTruthy();
     expect(engineHtml).toContain(`id="${bodyId}"`);
+    // Geometry probe resolves --island-height / --island-toast-max-width for the JS silhouette.
+    expect(engineHtml).toContain('data-island-toast-probe=""');
+  });
+
+  test("island.css keeps toast and island tokens in parity across themes", async () => {
+    const css = await Bun.file(new URL("../src/island.css", import.meta.url)).text();
+    // Explicit dark must win under a light ancestor, and system follows a dark OS.
+    expect(css).toContain(':where([data-island-theme="dark"])');
+    expect(css).toMatch(/prefers-color-scheme: dark\)\s*\{\s*:where\(\[data-island-theme="system"\]\)/);
+    // Toast title uses the island title size.
+    expect(css).not.toContain("font-size: 0.85rem");
+    expect(css).toContain("[data-island-toast-probe]");
   });
 
   test("wraps leading, badge (including 0), and trailing slots cleanly and omits falsy/boolean slots", () => {

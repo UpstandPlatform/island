@@ -45,6 +45,44 @@
   --island-action: oklch(0.623 0.214 259.815);
 }
 
+/* Explicit dark (and system in dark mode) re-applies the dark palette, so a
+   dark island or toaster still renders dark under a light-themed ancestor. */
+:where([data-island-theme="dark"]) {
+  --island-bg: #000;
+  --island-fg: #fff;
+  --island-fg-muted: rgb(255 255 255 / 0.78);
+  --island-fg-subtle: rgb(255 255 255 / 0.7);
+  --island-ring: rgb(255 255 255 / 0.12);
+  --island-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.45);
+
+  --island-glass-tint: rgb(18 18 28 / 0.46);
+  --island-glass-fg: rgb(255 255 255 / 0.96);
+  --island-glass-fg-muted: rgb(255 255 255 / 0.84);
+  --island-glass-rim: rgb(255 255 255 / 0.4);
+  --island-glass-rim-soft: rgb(255 255 255 / 0.14);
+  --island-glass-shadow: 0 12px 34px -8px rgb(0 0 0 / 0.44);
+  --island-glass-text-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :where([data-island-theme="system"]) {
+    --island-bg: #000;
+    --island-fg: #fff;
+    --island-fg-muted: rgb(255 255 255 / 0.78);
+    --island-fg-subtle: rgb(255 255 255 / 0.7);
+    --island-ring: rgb(255 255 255 / 0.12);
+    --island-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.45);
+
+    --island-glass-tint: rgb(18 18 28 / 0.46);
+    --island-glass-fg: rgb(255 255 255 / 0.96);
+    --island-glass-fg-muted: rgb(255 255 255 / 0.84);
+    --island-glass-rim: rgb(255 255 255 / 0.4);
+    --island-glass-rim-soft: rgb(255 255 255 / 0.14);
+    --island-glass-shadow: 0 12px 34px -8px rgb(0 0 0 / 0.44);
+    --island-glass-text-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+  }
+}
+
 :where([data-island-theme="light"]) {
   --island-bg: #fff;
   --island-fg: #0a0a0a;
@@ -684,6 +722,18 @@
 
 /* ------------------------------- Toasts ------------------------------- */
 
+/* Invisible probe: resolves --island-height / --island-toast-max-width to px
+   so the JS-driven toast silhouette uses the same geometry as the island. */
+:where([data-island-toast-probe]) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--island-toast-max-width);
+  height: var(--island-height);
+  visibility: hidden;
+  pointer-events: none;
+}
+
 :where([data-island-toast]) {
   position: relative;
   flex: none;
@@ -814,7 +864,7 @@
   color: inherit;
   background: transparent;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25rem;
   text-align: start;
@@ -833,7 +883,7 @@
   color: inherit;
   background: transparent;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25rem;
   text-align: start;
@@ -1128,7 +1178,8 @@
   :where(
     [data-island-busy-label],
     [data-island-toast-header-layer],
-    [data-island-toast]
+    [data-island-toast],
+    [data-island-spin]
   ) {
     animation: none;
   }
